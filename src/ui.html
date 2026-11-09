@@ -122,6 +122,8 @@ svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:2;stroke-l
 .rec.best{background:linear-gradient(90deg,rgba(255,201,60,.12),transparent);border-color:rgba(255,201,60,.35)}
 .rec .t{flex:1;min-width:0}
 .rec .t div:first-child{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rec .t div:first-child .tag{margin-left:8px}
+.rec .t .sub{margin-top:4px}
 .pct{font-weight:800;font-size:14px;padding:2px 10px;border-radius:99px;background:var(--greenBg);color:var(--green)}
 .pct.warn{background:var(--yellowBg);color:var(--yellow)} .pct.bad{background:var(--redBg);color:var(--red)} .pct.na{background:var(--panel);color:var(--faint);border:1px solid var(--border)}
 
@@ -635,7 +637,7 @@ async function refreshLive(silent){
       if (r.nextAt) lockUntil=Math.max(lockUntil, r.nextAt);
       if (r.error) errs.push('「'+M(p.remark)+'」'+r.error);
     }).catch(e=>errs.push('「'+M(p.remark)+'」'+e.message))));
-    lockUntil=Math.max(lockUntil, Date.now()+30e3);
+    lockUntil=Math.max(lockUntil, Date.now()+180e3);
     rebuildLive(); liveAt=Date.now(); renderAll();
     if (!silent) { if (errs.length) toast(errs.join('\n')+(Object.keys(DUSAGE).length?'\n（先显示最近一次的数据）':''),false); else if (list.length) toast('已更新官方余量'); }
   } finally { done(); liveBusy=false; liveCooldown(); }
@@ -1109,7 +1111,7 @@ function renderSettings(){
     + `<div class="setting"><div class="t"><b>自动刷新全部数据</b><span>按间隔在后台刷新账号、余量、用量统计、会话记录和日志（右上角刷新按钮的绿点表示已开启）</span></div><select class="sel" id="autoAllSel">${[[60,'每 1 分钟（默认）'],[180,'每 3 分钟'],[300,'每 5 分钟'],[600,'每 10 分钟'],[0,'关闭']].map(([v,t])=>`<option value="${v}" ${v===AUTO_ALL?'selected':''}>${t}</option>`).join('')}</select></div>`
     + `<div class="setting"><div class="t"><b>界面字号</b><span>整个应用的文字和界面大小，窗口较小时会在此基础上自动略缩</span></div><select class="sel" id="uiScaleSel">${[[0.9,'小 90%'],[1,'标准 100%'],[1.12,'大 112%'],[1.25,'更大 125%']].map(([v,t])=>`<option value="${v}" ${Math.abs(v-UI_SCALE)<0.001?'selected':''}>${t}</option>`).join('')}</select></div>`
     + `<div class="setting" style="display:block"><div class="t"><b>显示的菜单</b><span>点一下切换显示 / 隐藏顶部菜单项；「设置」始终显示</span></div>
-       <div class="menuPick" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:12px">${MENUS.map(([id,name])=>{ const on=!hiddenMenus().includes(id), lock=id==='set';
+       <div class="menuPick" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:12px">${MENUS.filter(m=>m[0]!=='set').map(([id,name])=>{ const on=!hiddenMenus().includes(id), lock=id==='set';
          return `<button class="chip ${on?'on':''}" data-menu="${id}" ${lock?'disabled title="设置不能隐藏"':''} style="border:1px solid var(--border);${lock?'opacity:.6;cursor:not-allowed':''}">${on?'✓ ':''}${name}</button>`; }).join('')}</div></div>`;
   $('#setUse').innerHTML = row('syncSessions','切换时同步会话记录','把上一个账号的全部会话记录带到新账号，切换后桌面 App 里还能看到、继续之前的对话')
     + row('autoMerge','自动合并所有账号的会话记录','启动时、每 5 分钟和切换账号后，自动把各账号的会话互相补齐（不关闭桌面 App；新增的会话在桌面 App 重新打开后显示）')
