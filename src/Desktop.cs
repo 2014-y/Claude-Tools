@@ -343,14 +343,43 @@ namespace ClaudeSwitcher
         }
         static readonly Regex CwdField = new Regex("\"(cwd|originCwd)\":\"((?:[^\"\\\\]|\\\\.)*)\"");
 
-        // 新账号当前登录的 账号ID\组织ID 会话目录（以最近一次用量记录的组织为准，其次取最近修改的）
+        // 新账号当前登录的 账号ID\组织ID 会话目录：桌面 App 只显示这个目录里的会话
+        // 优先用 config.json 里的 lastKnownAccountUuid（当前登录账号）；其次用最近一次用量记录的组织
         static string TargetSessionDir(string profileDir)
         {
             var root = Path.Combine(profileDir, "claude-code-sessions");
             if (!Directory.Exists(root)) return null;
+            string accId = null;
+            try
+            {
+                var cfg = Path.Combine(profileDir, "config.json");
+                if (File.Exists(cfg))
+                {
+                    var m = Regex.Match(File.ReadAllText(cfg, Encoding.UTF8), "\"lastKnownAccountUuid\"\\s*:\\s*\"([^\"]+)\"");
+                    if (m.Success) accId = m.Groups[1].Value;
+                }
+            }
+            catch { }
+            var q = QuotaReader.Read(profileDir);
+            if (accId != null)
+            {
+                var accDir = Path.Combine(root, accId);
+                if (Directory.Exists(accDir))
+                {
+                    var orgs = Directory.GetDirectories(accDir);
+                    if (orgs.Length > 0)
+                    {
+                        if (q != null && q.Org.Length > 0)
+                        {
+                            var hit = orgs.FirstOrDefault(d => string.Equals(Path.GetFileName(d), q.Org, StringComparison.OrdinalIgnoreCase));
+                            if (hit != null) return hit;
+                        }
+                        return orgs.OrderByDescending(d => Directory.GetLastWriteTimeUtc(d)).First();
+                    }
+                }
+            }
             var orgDirs = Directory.GetDirectories(root).SelectMany(a => Directory.GetDirectories(a)).ToList();
             if (orgDirs.Count == 0) return null;
-            var q = QuotaReader.Read(profileDir);
             if (q != null && q.Org.Length > 0)
             {
                 var hit = orgDirs.FirstOrDefault(d => string.Equals(Path.GetFileName(d), q.Org, StringComparison.OrdinalIgnoreCase));
@@ -358,7 +387,6 @@ namespace ClaudeSwitcher
             }
             return orgDirs.OrderByDescending(d => Directory.GetLastWriteTimeUtc(d)).First();
         }
-
         static int CopyDir(string src, string dst, ref int budget)
         {
             int n = 0;
@@ -384,8 +412,8 @@ namespace ClaudeSwitcher
             var srcRoot = Path.Combine(fromDir, "claude-code-sessions");
             if (!Directory.Exists(srcRoot)) return "";
             var toRoot = Path.Combine(toDir, "claude-code-sessions");
-            var existing = new HashSet<string>(Directory.GetFiles(toRoot, "local_*.json", SearchOption.AllDirectories)
-                .Select(Path.GetFileName), StringComparer.OrdinalIgnoreCase);
+            // 只算目标目录（当前登录账号）里已有的：别的账号目录里有同名文件，当前账号一样看不到
+            var existing = new HashSet<string>(Directory.GetFiles(target, "local_*.json").Select(Path.GetFileName), StringComparer.OrdinalIgnoreCase);
             int copied = 0, ws = 0, removed = 0;
             // 删除同步：两边任意一边删过的会话，都按已删除处理
             var deleted = Sessions.DeletedIds(new[] { fromDir, toDir });
@@ -424,6 +452,15 @@ namespace ClaudeSwitcher
                     }
                 }
                 catch { }
+            }
+            // 同一个存档里还可能躺着别的（旧）账号目录下的会话：桌面 App 只显示当前登录账号目录里的，所以也一并补进来
+            foreach (var f in Directory.GetFiles(toRoot, "local_*.json", SearchOption.AllDirectories))
+            {
+                if (string.Equals(Path.GetDirectoryName(f), target, StringComparison.OrdinalIgnoreCase)) continue;
+                var nm = Path.GetFileName(f);
+                if (existing.Contains(nm)) continue;
+                if (deleted.Contains(Path.GetFileNameWithoutExtension(nm).Substring(6))) continue;
+                try { File.Copy(f, Path.Combine(target, nm)); existing.Add(nm); copied++; } catch { }
             }
             LastCounts = new[] { copied, ws, removed };
             var msg = copied == 0 ? "会话记录已是最新" : "已同步 " + copied + " 条会话记录" + (ws > 0 ? "（含 " + ws + " 个临时工作区）" : "");

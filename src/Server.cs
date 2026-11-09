@@ -237,7 +237,25 @@ namespace ClaudeSwitcher
         static void Quit()
         {
             if (tray != null) { tray.Visible = false; tray.Dispose(); }
+            CloseUiWindow();
             Environment.Exit(0);
+        }
+
+        // 退出时一并关掉界面窗口：只结束本工具专用的 Edge 进程（数据目录含 ClaudeSwitcher\webview），不碰你自己的浏览器
+        static void CloseUiWindow()
+        {
+            try
+            {
+                var marker = Path.Combine(Settings.StateDir, "webview");
+                using (var s = new System.Management.ManagementObjectSearcher("SELECT ProcessId, CommandLine FROM Win32_Process WHERE Name = 'msedge.exe'"))
+                    foreach (System.Management.ManagementObject o in s.Get())
+                    {
+                        var cl = Convert.ToString(o["CommandLine"]);
+                        if (cl != null && cl.IndexOf(marker, StringComparison.OrdinalIgnoreCase) >= 0)
+                            try { Process.GetProcessById(Convert.ToInt32(o["ProcessId"])).Kill(); } catch { }
+                    }
+            }
+            catch { }
         }
 
         // ---------------- 窗口 ----------------
