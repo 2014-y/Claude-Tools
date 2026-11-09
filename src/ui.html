@@ -635,8 +635,9 @@ function parseReset(s){
 const DUSAGE={};
 function rebuildLive(){
   LIVE={}; (S.desktop||[]).forEach(p=>{ const u=DUSAGE[p.id]; if(!u) return;
-    LIVE[p.id]={ h5:u.session?Math.max(0,100-u.session.used):null, d7:u.week?Math.max(0,100-u.week.used):null,
-      r5:u.session?u.session.resetAt:0, r7:u.week?u.week.resetAt:0, at:u.at }; });
+    const now=Date.now(), s=u.session, w=u.week;
+    LIVE[p.id]={ h5:s?(s.resetAt&&s.resetAt<=now?100:Math.max(0,100-s.used)):null, d7:w?(w.resetAt&&w.resetAt<=now?100:Math.max(0,100-w.used)):null,
+      r5:s?s.resetAt:0, r7:w?w.resetAt:0, at:u.at }; });
 }
 let liveBusy=false, liveAt=0;
 // 查询锁：每次查询（打开时自动查、手动点、全部刷新）之后都要等一段时间才能再查；被官方限流时按官方给的时间
@@ -664,7 +665,7 @@ async function refreshLive(silent){
       const d=r.error ? r.error : '5 小时已用 '+(r.session?r.session.used+'%':'--')+' · 每周已用 '+(r.week?r.week.used+'%':'--');
       const limited=/^官方限流/.test(r.error||''); if (!silent || (r.error && !limited)) addLog(silent?'自动查询官方额度':'查询官方额度', p.remark, !r.error || limited, limited ? d+'（先显示最近一次的数据）' : d, Date.now()-t0);
     }).catch(e=>{ errs.push('「'+M(p.remark)+'」'+e.message); addLog(silent?'自动查询官方额度':'查询官方额度', p.remark, false, e.message, Date.now()-t0); }); }));
-    lockUntil=Math.max(lockUntil, Date.now()+180e3);
+    lockUntil=Math.max(lockUntil, Date.now()+120e3);
     rebuildLive(); liveAt=Date.now(); renderAll();
     if (!silent) { if (errs.length) toast(errs.join('\n')+(Object.keys(DUSAGE).length?'\n（先显示最近一次的数据）':''),false); else if (list.length) toast('已更新官方余量'); }
   } finally { done(); liveBusy=false; liveCooldown(); }

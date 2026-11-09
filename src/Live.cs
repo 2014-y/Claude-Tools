@@ -137,7 +137,7 @@ namespace ClaudeSwitcher
             }
             catch { }
         }
-        public const int LockSeconds = 180;   // 每 3 分钟查一次
+        public const int LockSeconds = 120;   // 每 2 分钟查一次
         // 被官方限流过的账号，接下来 1 小时内改为每 2 分钟查一次，避免反复撞限流
         static readonly Dictionary<string, DateTime> Slow = new Dictionary<string, DateTime>();
         static int Gap(string id) { return LockSeconds; }
