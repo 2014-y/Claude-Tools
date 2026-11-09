@@ -1,4 +1,4 @@
-// Claude 桌面 App 多账号：每个账号保存一整套 %APPDATA%\Claude 数据目录。
+﻿// Claude 桌面 App 多账号：每个账号保存一整套 %APPDATA%\Claude 数据目录。
 // 切换 = 关闭桌面 App -> 当前目录改名存档 -> 目标存档改名为 %APPDATA%\Claude -> 重新打开。
 using System;
 using System.Collections.Generic;
@@ -34,8 +34,61 @@ namespace ClaudeSwitcher
             return string.IsNullOrEmpty(v) ? Environment.GetFolderPath(fallback) : v;
         }
 
-        public static readonly string AppData = Env("CLAUDE_SWITCHER_APPDATA", Environment.SpecialFolder.ApplicationData);
         public static readonly string LocalAppData = Env("CLAUDE_SWITCHER_LOCALAPPDATA", Environment.SpecialFolder.LocalApplicationData);
+
+        // ---------- 两种安装方式 ----------
+        // 传统安装版（Squirrel）：程序在 %LOCALAPPDATA%\AnthropicClaude，数据在 %APPDATA%\Claude
+        // MSIX 包版（官网新安装包 / 微软商店 / winget）：程序在 C:\Program Files\WindowsApps\Claude_*，
+        //   数据被系统重定向到 %LOCALAPPDATA%\Packages\Claude_<发布者>\LocalCache\Roaming\Claude
+        public static readonly string MsixPackageDir = FindMsixPackageDir();
+        public static readonly string AppData = ResolveAppData();
+        public static bool IsMsix { get { return MsixPackageDir != null && AppData.StartsWith(MsixPackageDir + "\\", StringComparison.OrdinalIgnoreCase); } }
+
+        static string FindMsixPackageDir()
+        {
+            try
+            {
+                var root = Path.Combine(LocalAppData, "Packages");
+                if (!Directory.Exists(root)) return null;
+                // 包目录名就是「包系列名」，例如 Claude_pzs8sxrjxfjjc；取最近有数据活动的那个
+                return Directory.GetDirectories(root, "Claude_*")
+                    .Where(d => Directory.Exists(Path.Combine(d, @"LocalCache\Roaming\Claude")) || Directory.Exists(Path.Combine(d, "LocalCache")))
+                    .OrderByDescending(d => Stamp(Path.Combine(d, @"LocalCache\Roaming\Claude")))
+                    .FirstOrDefault();
+            }
+            catch { return null; }
+        }
+
+        // 数据目录最近一次活动的时间（登录信息 / 配置文件的修改时间）
+        static DateTime Stamp(string claudeDir)
+        {
+            var t = DateTime.MinValue;
+            foreach (var f in new[] { "config.json", "Local State", @"Local Storage\leveldb" })
+            {
+                try
+                {
+                    var p = Path.Combine(claudeDir, f);
+                    var w = File.Exists(p) ? File.GetLastWriteTimeUtc(p) : Directory.Exists(p) ? Directory.GetLastWriteTimeUtc(p) : DateTime.MinValue;
+                    if (w > t) t = w;
+                }
+                catch { }
+            }
+            return t;
+        }
+
+        static string ResolveAppData()
+        {
+            var forced = Environment.GetEnvironmentVariable("CLAUDE_SWITCHER_APPDATA");
+            if (!string.IsNullOrEmpty(forced)) return forced;
+            var roaming = Env("CLAUDE_SWITCHER_ROAMING", Environment.SpecialFolder.ApplicationData);
+            if (MsixPackageDir == null) return roaming;
+            var msixRoaming = Path.Combine(MsixPackageDir, @"LocalCache\Roaming");
+            var classic = Path.Combine(roaming, "Claude");
+            bool classicInstalled = File.Exists(Path.Combine(LocalAppData, @"AnthropicClaude\claude.exe")) || Directory.Exists(Path.Combine(LocalAppData, "AnthropicClaude"));
+            // 只装了 MSIX 版，或 MSIX 版的数据更新：用 MSIX 的数据目录
+            if (!Directory.Exists(classic) || !classicInstalled) return msixRoaming;
+            return Stamp(Path.Combine(msixRoaming, "Claude")) > Stamp(classic) ? msixRoaming : roaming;
+        }
         public static readonly string ActiveDir = Path.Combine(AppData, "Claude");
         public static readonly string ProfilesDir = Path.Combine(AppData, "Claude-profiles");
         static bool TestMode { get { return Environment.GetEnvironmentVariable("CLAUDE_SWITCHER_TEST") == "1"; } }
@@ -167,15 +220,27 @@ namespace ClaudeSwitcher
         // ---------- 进程控制 ----------
         static string InstallDir { get { return Path.Combine(LocalAppData, "AnthropicClaude"); } }
 
+        [System.Runtime.InteropServices.DllImport("kernel32.dll", SetLastError = true)]
+        static extern IntPtr OpenProcess(int access, bool inherit, int pid);
+        [System.Runtime.InteropServices.DllImport("kernel32.dll", CharSet = System.Runtime.InteropServices.CharSet.Unicode, SetLastError = true)]
+        static extern bool QueryFullProcessImageName(IntPtr h, int flags, StringBuilder name, ref int size);
+        [System.Runtime.InteropServices.DllImport("kernel32.dll")]
+        static extern bool CloseHandle(IntPtr h);
+        static string ProcessPath(Process p)
+        {
+            try { return p.MainModule.FileName; } catch { }
+            var h = OpenProcess(0x1000, false, p.Id);   // PROCESS_QUERY_LIMITED_INFORMATION，打包应用也能查
+            if (h == IntPtr.Zero) return null;
+            try { var sb = new StringBuilder(1024); int n = sb.Capacity; return QueryFullProcessImageName(h, 0, sb, ref n) ? sb.ToString() : null; }
+            finally { CloseHandle(h); }
+        }
         static bool IsDesktopProcess(Process p)
         {
-            try
-            {
-                var path = p.MainModule.FileName;
-                return path.StartsWith(InstallDir + "\\", StringComparison.OrdinalIgnoreCase)
-                    || path.StartsWith(ActiveDir + "\\", StringComparison.OrdinalIgnoreCase);
-            }
-            catch { return false; }
+            var path = ProcessPath(p);
+            if (string.IsNullOrEmpty(path)) return false;
+            return path.StartsWith(InstallDir + "\\", StringComparison.OrdinalIgnoreCase)
+                || path.StartsWith(ActiveDir + "\\", StringComparison.OrdinalIgnoreCase)
+                || (MsixPackageDir != null && path.IndexOf("\\WindowsApps\\Claude_", StringComparison.OrdinalIgnoreCase) >= 0);
         }
 
         static List<Process> DesktopProcesses()
@@ -234,9 +299,32 @@ namespace ClaudeSwitcher
             Thread.Sleep(800); // 等文件句柄释放
         }
 
+        static string aumid;
+        // MSIX 版的应用 ID（包系列名!应用名），用于通过 shell:AppsFolder 启动
+        static string MsixAppId()
+        {
+            if (aumid != null) return aumid;
+            var family = Path.GetFileName(MsixPackageDir);
+            string app = null;
+            try
+            {
+                var psi = new ProcessStartInfo("powershell.exe", "-NoProfile -NonInteractive -Command \"$p=Get-AppxPackage | ? { $_.PackageFamilyName -eq '" + family + "' } | select -First 1; if($p){ ((Get-AppxPackageManifest $p).Package.Applications.Application | select -First 1).Id }\"")
+                { UseShellExecute = false, RedirectStandardOutput = true, CreateNoWindow = true };
+                using (var pr = Process.Start(psi)) { var o = pr.StandardOutput.ReadToEnd().Trim(); pr.WaitForExit(15000); if (o.Length > 0 && o.IndexOf(' ') < 0) app = o; }
+            }
+            catch { }
+            aumid = family + "!" + (app ?? "Claude");
+            return aumid;
+        }
+
         public static void LaunchDesktop()
         {
             if (TestMode) return;
+            if (IsMsix)
+            {
+                Process.Start(new ProcessStartInfo("explorer.exe", "shell:AppsFolder\\" + MsixAppId()) { UseShellExecute = true });
+                return;
+            }
             var stub = Path.Combine(InstallDir, "claude.exe");
             string exe = File.Exists(stub) ? stub : null;
             if (exe == null && Directory.Exists(InstallDir))

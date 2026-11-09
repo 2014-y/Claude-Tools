@@ -209,6 +209,7 @@ flowchart LR
 ```
 
 - 每个账号保存一整套独立的桌面 App 数据目录，切换就是**两个目录互换位置**，所以不用重新登录。
+- 自动识别**传统安装版**和 **MSIX 包版**（官网新安装包 / 微软商店 / winget），使用各自的数据目录和启动方式。
 - 任何一步失败都会**自动回滚**，不会把账号数据弄丢。
 - 账号状态会显示 🟢 正常 / 🔴 异常（例如登录已失效），邮箱默认脱敏。
 
@@ -304,8 +305,9 @@ graph TD
 
 | 位置 | 内容 |
 |---|---|
-| `%APPDATA%\Claude` | 当前桌面 App 账号的数据 |
-| `%APPDATA%\Claude-profiles\<id>` | 其他账号的存档 |
+| `%APPDATA%\Claude` | 当前桌面 App 账号的数据（传统安装版） |
+| `%LOCALAPPDATA%\Packages\Claude_*\LocalCache\Roaming\Claude` | 当前桌面 App 账号的数据（MSIX 包版，由系统重定向） |
+| 同级的 `Claude-profiles\<id>` | 其他账号的存档 |
 | `%USERPROFILE%\.claude\projects` | 对话记录（所有账号共用），用量统计的数据来源 |
 | `%USERPROFILE%\.claude-accounts\<id>` | 终端 Claude Code 各账号 |
 | `%LOCALAPPDATA%\ClaudeSwitcher` | 本工具的设置、操作日志、定价、额度缓存 |
@@ -328,6 +330,12 @@ graph TD
 <summary><b>切换账号会丢失会话吗？</b></summary>
 
 不会。默认开启「切换时同步会话记录」和「自动合并所有账号的会话记录」，对话内容本身也保存在所有账号共用的 `~/.claude/projects`。新同步过来的会话，在桌面 App 里退出再打开一次就能看到。
+</details>
+
+<details>
+<summary><b>我的 Claude 是从微软商店 / 官网新安装包装的，能用吗？</b></summary>
+
+能。工具会自动识别 Claude 桌面 App 是传统安装版还是 MSIX 包版，并使用对应的数据目录和启动方式，不需要任何设置。两种版本都装过时，会使用最近在用的那一个。
 </details>
 
 <details>
@@ -375,7 +383,7 @@ graph TD
 | 💻 系统 | Windows 10 / 11（x64） |
 | ⚙️ 运行库 | .NET Framework 4.x（Windows 自带） |
 | 🌐 界面 | Microsoft Edge（Windows 自带） |
-| 🤖 Claude | Claude 桌面 App（Squirrel 安装版，位于 `%LOCALAPPDATA%\AnthropicClaude`） |
+| 🤖 Claude | Claude 桌面 App，**两种安装方式都支持**：<br/>• 传统安装版（`%LOCALAPPDATA%\AnthropicClaude`）<br/>• MSIX 包版（官网新安装包 / 微软商店 / winget，位于 `WindowsApps`） |
 | 💻 可选 | Claude Code（使用终端多账号时需要，可在工具里一键安装） |
 
 ---
