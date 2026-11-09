@@ -260,6 +260,10 @@ svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:2;stroke-l
 .toast{display:flex;gap:10px;align-items:center;background:var(--panel);border:1px solid var(--border);box-shadow:var(--shadow);border-radius:12px;padding:12px 16px;min-width:260px;max-width:440px;animation:pop .16s ease-out;white-space:pre-line}
 .toast.ok svg{color:var(--green)} .toast.err svg{color:var(--red)}
 .hide{display:none!important}
+/* 余量数据来自本地记录、不够准确：隐藏所有进度条，账号列表只保留重置时间 */
+.track{display:none!important}
+#dlist .qbar > span:not(.rcell), #dlist .qbar > b{display:none!important}
+#dlist .qbar{display:block}
 .offline{position:fixed;top:14px;left:50%;transform:translateX(-50%);z-index:50;display:none;align-items:center;gap:10px;padding:10px 18px;border-radius:999px;background:var(--panel);border:1px solid rgba(255,77,79,.5);box-shadow:var(--shadow);color:#ff9a9a;font-size:13px;font-weight:600}
 .offline.show{display:flex}
 ::-webkit-scrollbar{width:10px;height:10px}::-webkit-scrollbar-thumb{background:var(--border);border-radius:10px;border:3px solid var(--bg)}
@@ -420,7 +424,7 @@ html.lt900{ .grid2{grid-template-columns:1fr} .app{padding:14px 16px} .kpis{disp
     </div>
     <div id="accDesk" style="display:contents">
       <div class="card fill">
-        <div class="thead g-desk"><div>账号</div><div>模型配额余量</div><div>上次使用</div><div style="text-align:right">操作</div></div>
+        <div class="thead g-desk"><div>账号</div><div>重置时间</div><div>上次使用</div><div style="text-align:right">操作</div></div>
         <div class="tbody" id="dlist"></div>
       </div>
     </div>
