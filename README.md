@@ -284,7 +284,8 @@ flowchart LR
 
 ### 🛎️ 8. 托盘与开机自启
 
-- **关闭窗口后继续后台运行**：留在右下角托盘，右键托盘图标可以快速切换账号。
+- **关闭窗口后继续后台运行**：点 X 只是隐藏窗口，留在右下角托盘；再点托盘图标**立即显示同一个窗口**，不重新加载、不闪烁。右键托盘图标可以快速切换账号。
+- 窗口的位置和大小会被记住，重新打开、重启工具后都保持不变。
 - **开机自动启动**：登录 Windows 后只在托盘启动，不弹窗口（默认关闭）。
 - **托盘通知**：切换成功 / 失败时在右下角提示。
 - 只会运行一个实例；再次打开会直接激活已有窗口。
@@ -295,7 +296,7 @@ flowchart LR
 
 ```mermaid
 graph TD
-    UI["🖥️ 界面<br/>Edge 应用模式窗口"] <-->|"仅本机 localhost + 访问令牌"| Core["⚙️ Claude Tools 本体<br/>C# 单文件 exe"]
+    UI["🖥️ 界面<br/>工具自己的窗口（内嵌 WebView2）"] <-->|"仅本机 localhost + 访问令牌"| Core["⚙️ Claude Tools 本体<br/>C# 单文件 exe"]
     Core --> Tray["🛎️ 系统托盘"]
     Core -->|"目录互换 / 会话同步"| Desk["📁 Claude 桌面 App 数据<br/>%APPDATA%\Claude*"]
     Core -->|"只读统计"| Logs["📝 对话日志<br/>~/.claude/projects"]
@@ -382,7 +383,7 @@ graph TD
 |---|---|
 | 💻 系统 | Windows 10 / 11（x64） |
 | ⚙️ 运行库 | .NET Framework 4.x（Windows 自带） |
-| 🌐 界面 | Microsoft Edge（Windows 自带） |
+| 🌐 界面 | WebView2 运行时（Windows 10/11 自带，Edge 用的就是它）；没有时自动改用 Edge 窗口 |
 | 🤖 Claude | Claude 桌面 App，**两种安装方式都支持**：<br/>• 传统安装版（`%LOCALAPPDATA%\AnthropicClaude`）<br/>• MSIX 包版（官网新安装包 / 微软商店 / winget，位于 `WindowsApps`） |
 | 💻 可选 | Claude Code（使用终端多账号时需要，可在工具里一键安装） |
 
@@ -406,6 +407,8 @@ powershell -ExecutionPolicy Bypass -File src\build.ps1
 | `src/Server.cs` | 程序入口、托盘、本机服务与接口 |
 | `src/Desktop.cs` | 桌面 App 账号存档、切换、会话与设置同步、合并 |
 | `src/Live.cs` | 官方实时额度查询、缓存与限流保护 |
+| `src/AppWindow.cs` | 界面窗口（内嵌 WebView2，关窗只隐藏、记住大小位置） |
+| `src/lib/webview2/` | 微软官方 WebView2 SDK 文件（BSD 许可，见其中 LICENSE.txt） |
 | `src/ClaudeSwitcher.cs` | 终端 Claude Code 账号 |
 | `src/Extras.cs` | 设置、操作日志、会话列表、存储扫描、缓存清理 |
 | `src/Usage.cs` | Token 用量统计与定价 |
@@ -420,6 +423,7 @@ powershell -ExecutionPolicy Bypass -File src\build.ps1
 
 ## 🙏 致谢
 
+- 界面组件：[Microsoft Edge WebView2](https://developer.microsoft.com/microsoft-edge/webview2/)（SDK 以 BSD 许可分发，见 [`src/lib/webview2/LICENSE.txt`](src/lib/webview2/LICENSE.txt)）
 - 界面默认字体：[站酷快乐体 ZCOOL KuaiLe](https://github.com/googlefonts/zcool-kuaile)，SIL Open Font License 1.1（见 [`src/fonts/OFL.txt`](src/fonts/OFL.txt)）
 - 徽章：[Shields.io](https://shields.io) · 横幅：[capsule-render](https://github.com/kyechan99/capsule-render)
 

@@ -67,9 +67,20 @@ namespace ClaudeSwitcher
             catch { }
         }
 
+        [System.Runtime.InteropServices.DllImport("user32.dll")] static extern bool SetProcessDpiAwarenessContext(IntPtr v);
+        [System.Runtime.InteropServices.DllImport("user32.dll")] static extern bool SetProcessDPIAware();
+        static void EnableDpiAwareness()
+        {
+            try { if (SetProcessDpiAwarenessContext(new IntPtr(-4))) return; } catch { } // 每个显示器各自缩放（Win10 1703+）
+            try { SetProcessDPIAware(); } catch { }
+        }
+
+        [STAThread]
         static void Main(string[] args)
         {
             CleanInheritedEnv();
+            EnableDpiAwareness();
+            WebUi.Init();
             if (RelaunchOutsideJob(args)) return;
             bool first;
             // 测试实例用独立的单实例锁，不影响正在运行的正式版
@@ -81,7 +92,7 @@ namespace ClaudeSwitcher
                 bool trayOnly = args.Contains("--tray");
                 if (!first)
                 {
-                    if (!trayOnly && !FocusExisting()) try { OpenWindow(File.ReadAllText(urlFile).Trim()); SizeNewWindow(); Thread.Sleep(9000); } catch { }
+                    if (!trayOnly && !AskRunningToShow(urlFile) && !FocusExisting()) try { OpenWindow(File.ReadAllText(urlFile).Trim()); SizeNewWindow(); Thread.Sleep(9000); } catch { }
                     return;
                 }
                 try
@@ -103,6 +114,23 @@ namespace ClaudeSwitcher
             }
         }
 
+        // 通知已在运行的实例把窗口显示出来（窗口在那个进程里，可能只是被隐藏了）
+        static bool AskRunningToShow(string urlFile)
+        {
+            try
+            {
+                AllowSetForegroundWindow(-1); // 允许那个实例把窗口切到最前
+                var u = File.ReadAllText(urlFile).Trim();
+                var baseUrl = u.Split('?')[0]; var tok = u.Substring(u.IndexOf("t=") + 2);
+                var rq = (HttpWebRequest)WebRequest.Create(baseUrl + "api/ui/show");
+                rq.Method = "POST"; rq.Headers["X-Token"] = tok; rq.ContentType = "application/json"; rq.Timeout = 4000;
+                var b = Encoding.UTF8.GetBytes("{}"); rq.ContentLength = b.Length;
+                using (var s = rq.GetRequestStream()) s.Write(b, 0, b.Length);
+                using (var r = (HttpWebResponse)rq.GetResponse()) using (var sr = new StreamReader(r.GetResponseStream())) return sr.ReadToEnd().Contains("\"ok\":true");
+            }
+            catch { return false; }
+        }
+
         // ---------------- 托盘 ----------------
         static void RunTray(bool trayOnly)
         {
@@ -122,9 +150,7 @@ namespace ClaudeSwitcher
             var timer = new System.Windows.Forms.Timer { Interval = 3000 };
             timer.Tick += delegate
             {
-                if (!Settings.Bool("trayMode") && windowEverOpened && (DateTime.Now - LastPing).TotalSeconds > 15) Quit();
-                // 后台常驻时，窗口关掉后在后台预先准备好一个隐藏窗口，点托盘图标直接显示，不闪烁也不重新加载
-                if (Settings.Bool("trayMode")) PrepareStandby();
+                if (!WebUi.Available && !Settings.Bool("trayMode") && windowEverOpened && (DateTime.Now - LastPing).TotalSeconds > 15) Quit();
             };
             timer.Start();
 
@@ -192,9 +218,12 @@ namespace ClaudeSwitcher
         static DateTime lastShow = DateTime.MinValue;
 
         // 已有窗口（包括后台预备好的隐藏窗口）就直接显示；没有才新开（双击 / 连点只算一次）
+        internal static void ShowUi() { if (ui != null) ui.Post(_ => ShowWindow(), null); else ShowWindow(); }
+
         static void ShowWindow()
         {
             windowEverOpened = true;
+            if (WebUi.Available) { try { WebUi.Show(Url); return; } catch (Exception ex) { OpLog.Add("界面组件", "WebView2", false, ex.Message, 0); WebUi.Failed = true; } }
             if (FocusExisting()) return;
             // 隐藏窗口正在准备中：稍等它就绪再显示，避免再开一个
             for (int i = 0; i < 25 && preparing; i++) { Application.DoEvents(); Thread.Sleep(120); }
@@ -244,10 +273,9 @@ namespace ClaudeSwitcher
                     Thread.Sleep(200);
                     var h = FindAppWindow();
                     if (h == IntPtr.Zero) continue;
-                    var wa = Screen.PrimaryScreen.WorkingArea;
-                    int w = Math.Min(1400, (int)(wa.Width * 0.88)), hh = Math.Min(900, (int)(wa.Height * 0.9));
+                    var r = DefaultBounds();
                     if (IsIconic(h)) ShowWindowAsync(h, 9);
-                    SetWindowPos(h, IntPtr.Zero, wa.Left + (wa.Width - w) / 2, wa.Top + (wa.Height - hh) / 2, w, hh, 0x0004 | 0x0010); // NOZORDER | NOACTIVATE
+                    SetWindowPos(h, IntPtr.Zero, r.Left, r.Top, r.Width, r.Height, 0x0004 | 0x0010); // NOZORDER | NOACTIVATE
                     return;
                 }
             }) { IsBackground = true }.Start();
@@ -260,12 +288,10 @@ namespace ClaudeSwitcher
             if (!IsWindowVisible(h))
             {
                 // 后台预备的隐藏窗口：放到屏幕中间再显示
-                var wa = Screen.PrimaryScreen.WorkingArea;
-                int w = Math.Min(1400, (int)(wa.Width * 0.88)), hh = Math.Min(900, (int)(wa.Height * 0.9));
-                int x = wa.Left + (wa.Width - w) / 2, y = wa.Top + (wa.Height - hh) / 2;
-                SetWindowPos(h, IntPtr.Zero, x, y, w - 1, hh, 0x0004 | 0x0040); // NOZORDER | SHOWWINDOW
+                var r = DefaultBounds();
+                SetWindowPos(h, IntPtr.Zero, r.Left, r.Top, r.Width - 1, r.Height, 0x0004 | 0x0040); // NOZORDER | SHOWWINDOW
                 ShowWindowAsync(h, 5); // SW_SHOW
-                SetWindowPos(h, IntPtr.Zero, x, y, w, hh, 0x0004);      // 大小变化一次，让 Edge 立即重绘
+                SetWindowPos(h, IntPtr.Zero, r.Left, r.Top, r.Width, r.Height, 0x0004);      // 大小变化一次，让 Edge 立即重绘
             }
             if (IsIconic(h)) ShowWindowAsync(h, 9); // SW_RESTORE
             SetForegroundWindow(h);
@@ -337,9 +363,10 @@ namespace ClaudeSwitcher
             }) { IsBackground = true }.Start();
         }
 
-        static void Quit()
+        internal static void Quit()
         {
             if (tray != null) { tray.Visible = false; tray.Dispose(); }
+            WebUi.Close();
             CloseUiWindow();
             Environment.Exit(0);
         }
@@ -362,23 +389,22 @@ namespace ClaudeSwitcher
         }
 
         // ---------------- 窗口 ----------------
+        internal static double DpiScale()
+        {
+            try { using (var g = Graphics.FromHwnd(IntPtr.Zero)) return g.DpiX / 96.0; } catch { return 1; }
+        }
+        // 默认窗口：最大 1400×900（按系统缩放），不超过屏幕的 88% × 90%，居中
+        internal static Rectangle DefaultBounds()
+        {
+            var wa = Screen.PrimaryScreen.WorkingArea; var s = DpiScale();
+            int w = Math.Min((int)(1400 * s), (int)(wa.Width * 0.88)), h = Math.Min((int)(900 * s), (int)(wa.Height * 0.9));
+            return new Rectangle(wa.Left + (wa.Width - w) / 2, wa.Top + (wa.Height - h) / 2, w, h);
+        }
         // 按系统显示缩放计算窗口的物理像素大小，避免窗口先小后大
         static string WindowArgs()
         {
-            double scale = 1;
-            try
-            {
-                using (var k = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(@"Control Panel\Desktop\WindowMetrics"))
-                {
-                    var v = k == null ? null : k.GetValue("AppliedDPI");
-                    if (v != null) scale = Convert.ToInt32(v) / 96.0;
-                }
-            }
-            catch { }
-            var wa = Screen.PrimaryScreen.WorkingArea;           // 本程序未声明 DPI 感知，这里是逻辑尺寸
-            int w = Math.Min(1400, (int)(wa.Width * 0.88)), h = Math.Min(900, (int)(wa.Height * 0.9));
-            int x = wa.Left + (wa.Width - w) / 2, y = wa.Top + (wa.Height - h) / 2;
-            return "--window-size=" + (int)(w * scale) + "," + (int)(h * scale) + " --window-position=" + (int)(x * scale) + "," + (int)(y * scale);
+            var r = DefaultBounds(); var s = DpiScale();
+            return "--window-size=" + (int)(r.Width / s) + "," + (int)(r.Height / s) + " --window-position=" + (int)(r.Left / s) + "," + (int)(r.Top / s);
         }
 
         // 关闭窗口后不让 Edge 继续在后台运行
@@ -519,6 +545,8 @@ namespace ClaudeSwitcher
         {
             switch (name)
             {
+                case "ui/show": ShowUi(); return null;
+                case "ui/theme": if (WebUi.Available) WebUi.SetTheme(S(a, "dark") != "0"); return null;
                 case "ping": LastPing = DateTime.Now; windowEverOpened = true; return File.GetLastWriteTimeUtc(Application.ExecutablePath).Ticks.ToString();
                 case "state": LastPing = DateTime.Now; windowEverOpened = true; return State();
 

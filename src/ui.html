@@ -1320,7 +1320,7 @@ $('#clist').onclick=async e=>{
 };
 
 // ---------- 主题 / 脱敏 ----------
-function setTheme(t){ document.documentElement.dataset.theme=t; $('#themeBtn').innerHTML=ico(t==='dark'?'sun':'moon'); try{localStorage.setItem('theme',t)}catch(e){} }
+function setTheme(t){ document.documentElement.dataset.theme=t; $('#themeBtn').innerHTML=ico(t==='dark'?'sun':'moon'); try{localStorage.setItem('theme',t)}catch(e){} try{ api('ui/theme',{dark:t==='dark'?'1':'0'}).catch(()=>{}); }catch(e){} }
 // 外观模式：dark / light / system（跟随 Windows）
 let THEME_MODE='dark'; try{ THEME_MODE=localStorage.getItem('themeMode')||localStorage.getItem('theme')||'dark'; }catch(e){}
 const darkMQ=window.matchMedia('(prefers-color-scheme: dark)');

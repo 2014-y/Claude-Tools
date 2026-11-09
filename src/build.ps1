@@ -161,8 +161,12 @@ $out = if ($exeName) { $exeName.FullName } else { Join-Path $outDir 'ClaudeSwitc
 $csc = Join-Path $env:WINDIR 'Microsoft.NET\Framework64\v4.0.30319\csc.exe'
 & $csc /nologo /codepage:65001 /target:winexe /optimize+ "/out:$out" "/win32icon:$(Join-Path $src 'app.ico')" `
     "/resource:$(Join-Path $src 'ui.html'),ui.html" "/resource:$(Join-Path $src 'app.ico'),app.ico" "/resource:$(Join-Path $src 'icon-256.png'),logo.png" "/resource:$(Join-Path $src 'fonts\zcool-kuaile.woff2'),font.woff2" `
-    /r:System.Windows.Forms.dll /r:System.Drawing.dll /r:System.Core.dll /r:System.Web.Extensions.dll /r:System.Management.dll /r:System.Security.dll `
-    (Join-Path $src 'ClaudeSwitcher.cs') (Join-Path $src 'Desktop.cs') (Join-Path $src 'Server.cs') (Join-Path $src 'Extras.cs') (Join-Path $src 'Usage.cs') (Join-Path $src 'Live.cs')
+    "/resource:$(Join-Path $src 'lib\webview2\Microsoft.Web.WebView2.Core.dll'),Microsoft.Web.WebView2.Core.dll" `
+    "/resource:$(Join-Path $src 'lib\webview2\Microsoft.Web.WebView2.WinForms.dll'),Microsoft.Web.WebView2.WinForms.dll" `
+    "/resource:$(Join-Path $src 'lib\webview2\x64\WebView2Loader.dll'),WebView2Loader.x64.dll" `
+    "/resource:$(Join-Path $src 'lib\webview2\x86\WebView2Loader.dll'),WebView2Loader.x86.dll" `
+    /r:System.Windows.Forms.dll /r:System.Drawing.dll /r:System.Core.dll /r:System.Web.Extensions.dll /r:System.Management.dll /r:System.Security.dll /r:"$(Join-Path $src 'lib\webview2\Microsoft.Web.WebView2.Core.dll')" /r:"$(Join-Path $src 'lib\webview2\Microsoft.Web.WebView2.WinForms.dll')" `
+    (Join-Path $src 'ClaudeSwitcher.cs') (Join-Path $src 'Desktop.cs') (Join-Path $src 'Server.cs') (Join-Path $src 'Extras.cs') (Join-Path $src 'Usage.cs') (Join-Path $src 'Live.cs') (Join-Path $src 'AppWindow.cs')
 if ($LASTEXITCODE -ne 0) { throw "编译失败" }
 Write-Host "OK -> $out"
 
