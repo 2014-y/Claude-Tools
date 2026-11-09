@@ -165,3 +165,10 @@ $csc = Join-Path $env:WINDIR 'Microsoft.NET\Framework64\v4.0.30319\csc.exe'
     (Join-Path $src 'ClaudeSwitcher.cs') (Join-Path $src 'Desktop.cs') (Join-Path $src 'Server.cs') (Join-Path $src 'Extras.cs') (Join-Path $src 'Usage.cs')
 if ($LASTEXITCODE -ne 0) { throw "编译失败" }
 Write-Host "OK -> $out"
+
+# ---- 安装程序（内嵌上面编译好的 exe）----
+$setupOut = Join-Path $outDir 'Claude-Tools-Setup.exe'
+& $csc /nologo /codepage:65001 /target:winexe /optimize+ "/out:$setupOut" "/win32icon:$(Join-Path $src 'app.ico')" `
+    "/resource:$out,app.exe" /r:System.Windows.Forms.dll /r:System.Drawing.dll /r:System.Core.dll (Join-Path $src 'Setup.cs')
+if ($LASTEXITCODE -ne 0) { throw "安装程序编译失败" }
+Write-Host "OK -> $setupOut"

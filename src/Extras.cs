@@ -63,6 +63,14 @@ namespace ClaudeSwitcher
                 if (k == "autoStart")
                 {
                     bool on = v is bool && (bool)v;
+                    try
+                    {
+                        // 记录是谁、什么时候改的开机自启，方便以后排查
+                        var st = new System.Diagnostics.StackTrace(1, false).GetFrames();
+                        var who = string.Join(" < ", st.Take(4).Select(fr => fr.GetMethod().Name));
+                        OpLog.Add("开机自启", on ? "开启" : "关闭", true, who, 0);
+                    }
+                    catch { }
                     SetAutoStart(on);
                     Data[k] = on;   // 记住用户的选择，之后每次启动都据此自检
                     Directory.CreateDirectory(StateDir);
