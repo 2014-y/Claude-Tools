@@ -12,6 +12,12 @@ using System.Web.Script.Serialization;
 
 namespace ClaudeSwitcher
 {
+    class RateLimited : Exception
+    {
+        public int Seconds;
+        public RateLimited(int s) : base("官方限流，" + s + " 秒后可再查") { Seconds = s; }
+    }
+
     static class LiveUsage
     {
         static readonly JavaScriptSerializer Json = new JavaScriptSerializer();
@@ -93,6 +99,7 @@ namespace ClaudeSwitcher
                 if (all.ContainsKey(id) && all[id] is object[]) list.AddRange((object[])all[id]);
                 long now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), cut = now - 8L * 86400000;
                 list.RemoveAll(x => !(x is object[]) || Convert.ToInt64(((object[])x)[0]) < cut);
+                if (r == null) return list;
                 var s = r["session"] as Dictionary<string, object>; var w = r["week"] as Dictionary<string, object>;
                 int su = s != null ? (int)s["used"] : -1, wu = w != null ? (int)w["used"] : -1;
                 var last = list.Count > 0 ? (object[])list[list.Count - 1] : null;
@@ -105,6 +112,66 @@ namespace ClaudeSwitcher
                 }
                 return list;
             }
+        }
+
+        // 缓存与限流保护：50 秒内重复请求直接用缓存；官方返回限流/网络失败时用最近一次成功的数据，并退避 5 分钟
+        static readonly Dictionary<string, Dictionary<string, object>> Last = new Dictionary<string, Dictionary<string, object>>();
+        static readonly Dictionary<string, DateTime> LastOk = new Dictionary<string, DateTime>();
+        static readonly Dictionary<string, DateTime> Backoff = new Dictionary<string, DateTime>();
+        static string CachePath { get { return Path.Combine(Settings.StateDir, "live-cache.json"); } }
+        static bool cacheLoaded;
+        static void LoadCache()
+        {
+            if (cacheLoaded) return; cacheLoaded = true;
+            try
+            {
+                if (!File.Exists(CachePath)) return;
+                var all = Json.DeserializeObject(File.ReadAllText(CachePath)) as Dictionary<string, object>;
+                if (all == null) return;
+                foreach (var kv in all) { var d = kv.Value as Dictionary<string, object>; if (d != null) Last[kv.Key] = d; }
+            }
+            catch { }
+        }
+        public const int LockSeconds = 30;
+        static long NowMs() { return DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(); }
+        public static Dictionary<string, object> Cached(string id, Func<Dictionary<string, object>> query)
+        {
+            lock (HistLock)
+            {
+                LoadCache();
+                DateTime bo;
+                if (Backoff.TryGetValue(id, out bo) && DateTime.Now < bo) return Answer(id, null, bo);
+            }
+            Dictionary<string, object> r = null; string err = null; DateTime next;
+            try { r = query(); next = DateTime.Now.AddSeconds(LockSeconds); }
+            catch (RateLimited ex) { err = ex.Message; next = DateTime.Now.AddSeconds(ex.Seconds); }
+            catch (Exception ex) { err = ex.Message; next = DateTime.Now.AddSeconds(LockSeconds); }
+            lock (HistLock)
+            {
+                Backoff[id] = next;
+                if (r != null)
+                {
+                    r["hist"] = Record(id, r);
+                    Last[id] = r; LastOk[id] = DateTime.Now;
+                    try
+                    {
+                        var save = new Dictionary<string, object>();
+                        foreach (var kv in Last) { var c = new Dictionary<string, object>(kv.Value); c.Remove("hist"); c.Remove("error"); c.Remove("nextAt"); save[kv.Key] = c; }
+                        File.WriteAllText(CachePath, Json.Serialize(save));
+                    }
+                    catch { }
+                }
+                return Answer(id, err, next);
+            }
+        }
+        // 返回最近一次成功的数据（没有则为空）+ 错误信息 + 下次可查询的时间
+        static Dictionary<string, object> Answer(string id, string err, DateTime next)
+        {
+            var d = Last.ContainsKey(id) ? new Dictionary<string, object>(Last[id]) : new Dictionary<string, object> { { "session", null }, { "week", null } };
+            if (!d.ContainsKey("hist")) d["hist"] = Record(id, null);
+            d["error"] = err;
+            d["nextAt"] = new DateTimeOffset(next).ToUnixTimeMilliseconds();
+            return d;
         }
 
         public static bool Available(string dir)
@@ -139,7 +206,12 @@ namespace ClaudeSwitcher
             {
                 var hr = ex.Response as HttpWebResponse;
                 if (hr != null && (int)hr.StatusCode == 401) throw new Exception("登录已失效：切换到这个账号打开一次桌面 App 即可恢复");
-                if (hr != null && (int)hr.StatusCode == 429) throw new Exception("查询太频繁，稍后会自动重试");
+                if (hr != null && (int)hr.StatusCode == 429)
+                {
+                    int sec = 300; int v;
+                    try { if (int.TryParse(hr.Headers["retry-after"], out v) && v > 0) sec = v; } catch { }
+                    throw new RateLimited(sec);
+                }
                 throw new Exception("连接官方服务器失败：" + ex.Message);
             }
             var d = Json.DeserializeObject(body) as Dictionary<string, object>;

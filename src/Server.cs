@@ -382,6 +382,7 @@ namespace ClaudeSwitcher
                 }
                 if (path == "/favicon.ico") { SendBytes(res, 200, "image/x-icon", LoadRes("app.ico")); return; }
                 if (path == "/logo.png") { SendBytes(res, 200, "image/png", LoadRes("logo.png")); return; }
+                if (path == "/font.woff2") { res.Headers["Cache-Control"] = "max-age=31536000"; SendBytes(res, 200, "font/woff2", LoadRes("font.woff2")); return; }
                 if (!path.StartsWith("/api/") || req.Headers["X-Token"] != Token || req.HttpMethod != "POST")
                 {
                     Send(res, 403, "text/plain", "forbidden"); return;
@@ -649,9 +650,7 @@ namespace ClaudeSwitcher
         {
             var p = DesktopStore.Load().FirstOrDefault(x => x.Id == id);
             if (p == null) throw new Exception("找不到这个账号");
-            var r = LiveUsage.Query(p.Dir);
-            r["hist"] = LiveUsage.Record(p.Id, r);
-            return r;
+            return LiveUsage.Cached(p.Id, () => LiveUsage.Query(p.Dir));
         }
         static readonly object UsageLock = new object();
         static Dictionary<string, object> RunUsage(string configDir, string name)

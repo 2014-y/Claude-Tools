@@ -21,7 +21,7 @@
 /* 配色与应用图标一致：橙红主色 + 奶黄 / 金黄点缀 */
 :root{
   --bg:#0d0b0a; --panel:#161210; --panel2:#1d1815; --rowHover:#211b17;
-  --border:#2e2621; --text:#f4ece6; --muted:#a39488; --faint:#6e625a;
+  --border:#2e2621; --text:#f4ece6; --muted:#bcaea2; --faint:#6e625a;
   --primary:#ff5a1f; --primary2:#e8470f; --grad:linear-gradient(135deg,#ff7a33,#f23d0f);
   --gold:#ffc93c; --cream:#ffe7a8;
   --pBg:rgba(255,90,31,.14); --gBg:rgba(255,201,60,.13); --cBg:rgba(255,231,168,.10);
@@ -37,11 +37,13 @@
 *{box-sizing:border-box;-webkit-user-select:none;user-select:none}
 input,textarea{-webkit-user-select:text;user-select:text}
 img{-webkit-user-drag:none}
+/* 界面字体：站酷快乐体 ZCOOL KuaiLe（SIL OFL 1.1，见 fonts/OFL.txt） */
+@font-face{font-family:"PortalCute";src:url("/font.woff2") format("woff2");font-weight:400;font-display:swap}
 html,body{margin:0;height:100%}
-body{background:var(--bg);color:var(--text);font:15px/1.5 "Segoe UI","Microsoft YaHei UI","PingFang SC",sans-serif;-webkit-font-smoothing:antialiased;overflow:hidden}
+body{background:var(--bg);color:var(--text);font:15px/1.5 "PortalCute","Segoe UI","Microsoft YaHei UI","PingFang SC",sans-serif;-webkit-font-smoothing:antialiased;overflow:hidden}
 body::before{content:"";position:fixed;inset:-30% -10% auto auto;width:60vw;height:60vw;background:radial-gradient(circle,rgba(255,90,31,.10),transparent 60%);pointer-events:none}
 button{font:inherit;color:inherit;cursor:pointer;border:0;background:none}
-input{font:inherit;color:inherit}
+input,select,textarea{font:inherit;color:inherit}
 svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex:none}
 .app{position:relative;height:100%;display:flex;flex-direction:column;padding:20px 32px 14px;gap:18px;max-width:1880px;margin:0 auto}
 .num{font-family:"Cascadia Mono","JetBrains Mono",Consolas,monospace;letter-spacing:-.5px}
@@ -62,7 +64,7 @@ svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:2;stroke-l
 .iconbtn.auto{position:relative}
 .iconbtn.auto::after{content:"";position:absolute;top:6px;right:6px;width:7px;height:7px;border-radius:50%;background:var(--green);box-shadow:0 0 0 2px var(--panel)}
 .iconbtn.on{color:var(--primary);border-color:rgba(255,90,31,.45);background:var(--pBg)}
-.pill{display:flex;align-items:center;gap:8px;padding:7px 14px;border-radius:999px;background:var(--panel);border:1px solid var(--border);color:var(--muted);font-size:13px;white-space:nowrap}
+.pill{display:flex;align-items:center;gap:8px;padding:7px 14px;border-radius:999px;background:var(--panel);border:1px solid var(--border);color:var(--muted);font-size:14px;white-space:nowrap}
 .dot{width:8px;height:8px;border-radius:50%;background:var(--faint);flex:none}
 .dot.on{background:var(--green);box-shadow:0 0 0 3px var(--greenBg)}
 
@@ -72,8 +74,8 @@ svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:2;stroke-l
 .search{display:flex;align-items:center;gap:8px;background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:0 12px;height:40px;width:260px;color:var(--faint)}
 .search input{border:0;outline:0;background:none;flex:1;height:100%}
 .chips{display:flex;gap:2px;background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:4px;flex-wrap:wrap}
-.chip{padding:5px 12px;border-radius:7px;color:var(--muted);font-size:12.5px;font-weight:600;display:flex;align-items:center;gap:7px;white-space:nowrap}
-.chip b{font-size:11px;background:var(--panel2);border:1px solid var(--border);padding:0 6px;border-radius:5px;color:var(--muted)}
+.chip{padding:5px 12px;border-radius:7px;color:var(--muted);font-size:14px;font-weight:600;display:flex;align-items:center;gap:7px;white-space:nowrap}
+.chip b{font-size:13.5px;background:var(--panel2);border:1px solid var(--border);padding:0 6px;border-radius:5px;color:var(--muted)}
 .chip.on{color:var(--primary);background:var(--pBg)}
 .chip.on b{background:var(--primary);border-color:var(--primary);color:#fff}
 .btn{height:40px;padding:0 16px;border-radius:10px;display:inline-flex;align-items:center;justify-content:center;gap:8px;font-weight:600;white-space:nowrap;transition:.15s;border:1px solid var(--border);background:var(--panel)}
@@ -82,9 +84,9 @@ svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:2;stroke-l
 .btn.main:hover{filter:brightness(1.08)}
 .btn.gold{background:linear-gradient(135deg,#ffd76a,#ffb21f);border-color:transparent;color:#3a1d05}
 .btn.red{background:var(--red);border-color:var(--red);color:#fff}
-.btn.sm{height:32px;padding:0 12px;font-size:13px;border-radius:8px}
+.btn.sm{height:32px;padding:0 12px;font-size:14px;border-radius:8px}
 .btn[disabled]{opacity:.45;pointer-events:none}
-.notice{display:flex;align-items:center;gap:10px;padding:10px 14px;border-radius:10px;background:var(--pBg);color:#ffb48f;font-size:13px;border:1px solid rgba(255,90,31,.28)}
+.notice{display:flex;align-items:center;gap:10px;padding:10px 14px;border-radius:10px;background:var(--pBg);color:#ffb48f;font-size:14px;border:1px solid rgba(255,90,31,.28)}
 [data-theme=light] .notice{color:#c2410c}
 
 .hello{display:flex;align-items:flex-end;gap:20px;flex-wrap:wrap}
@@ -93,7 +95,7 @@ svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:2;stroke-l
 .kpi{padding:0 22px;text-align:right;border-left:1px solid var(--border)}
 .kpi:first-child{border-left:0}
 .kpi b{display:block;font-size:28px;line-height:1.1}
-.kpi span{font-size:13.5px;color:var(--muted)}
+.kpi span{font-size:14px;color:var(--muted)}
 .grid4{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px}
 .grid2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
 .box{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);padding:20px;display:flex;flex-direction:column;gap:12px;min-width:0}
@@ -112,20 +114,20 @@ svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:2;stroke-l
 .mini{background:var(--panel2);border:1px solid var(--border);border-radius:12px;padding:12px 14px;display:flex;flex-direction:column;gap:7px}
 .mini .row{display:flex;justify-content:space-between;align-items:center;font-size:14px;color:var(--muted)}
 .mini .row b{color:var(--text);font-size:15px}
-.mini .k{font-size:13px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mini .k{font-size:14px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .mini .v{font-size:20px;font-weight:800;color:var(--text);white-space:nowrap;line-height:1.2}
 .box-f{margin-top:auto;padding-top:12px;border-top:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;color:var(--muted);font-size:14px}
 .rec{display:flex;align-items:center;gap:14px;padding:12px 14px;border-radius:12px;background:var(--panel2);border:1px solid var(--border)}
 .rec.best{background:linear-gradient(90deg,rgba(255,201,60,.12),transparent);border-color:rgba(255,201,60,.35)}
 .rec .t{flex:1;min-width:0}
 .rec .t div:first-child{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.pct{font-weight:800;font-size:13px;padding:2px 10px;border-radius:99px;background:var(--greenBg);color:var(--green)}
+.pct{font-weight:800;font-size:14px;padding:2px 10px;border-radius:99px;background:var(--greenBg);color:var(--green)}
 .pct.warn{background:var(--yellowBg);color:var(--yellow)} .pct.bad{background:var(--redBg);color:var(--red)} .pct.na{background:var(--panel);color:var(--faint);border:1px solid var(--border)}
 
 .card{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);display:flex;flex-direction:column;overflow:hidden;min-height:0}
 .card.fill{flex:1}
 .thead,.tr{display:grid;align-items:center;gap:16px;padding:0 22px}
-.thead{height:46px;color:var(--muted);font-size:13px;font-weight:600;border-bottom:1px solid var(--border);background:var(--panel2);flex:none}
+.thead{height:46px;color:var(--muted);font-size:14px;font-weight:600;border-bottom:1px solid var(--border);background:var(--panel2);flex:none}
 .tbody{flex:1;overflow:auto}
 .tr{min-height:74px;border-bottom:1px solid var(--border);transition:background .12s;position:relative}
 .tr:hover{background:var(--rowHover)}
@@ -141,7 +143,7 @@ svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:2;stroke-l
 .avatar{width:40px;height:40px;border-radius:12px;display:grid;place-items:center;font-weight:800;color:#fff;font-size:16px;flex:none;text-shadow:0 1px 2px rgba(0,0,0,.25)}
 .who .name{font-weight:600;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .who .tags{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-top:3px}
-.tag{font-size:12.5px;font-weight:700;padding:1px 8px;border-radius:6px;display:inline-flex;align-items:center;gap:4px;white-space:nowrap}
+.tag{font-size:14px;font-weight:700;padding:1px 8px;border-radius:6px;display:inline-flex;align-items:center;gap:4px;white-space:nowrap}
 .tag.green{background:var(--greenBg);color:var(--green)} .tag.main{background:var(--pBg);color:var(--primary)}
 .tag.gold{background:var(--gBg);color:var(--gold)} .tag.cream{background:var(--cBg);color:var(--cream)}
 .tag.gray{background:var(--panel2);color:var(--muted);border:1px solid var(--border)}
@@ -154,20 +156,20 @@ svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:2;stroke-l
 .qbar b{text-align:right;color:var(--text);font-size:14px}
 .setwr{color:var(--primary);cursor:pointer;text-decoration:underline dotted}
 .rline[data-wr]{cursor:pointer}
-.rline{grid-column:2 / 4;font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:-6px}
+.rline{grid-column:2 / 4;font-size:13.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:-6px}
 .rs b{font-family:"Cascadia Mono",Consolas,monospace;color:var(--gold);font-weight:700}
 .qbar .track{height:10px}
 .ellip{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
-.time{font-size:13px}.time small{display:block;color:var(--faint);font-size:12px}
+.time{font-size:14px}.time small{display:block;color:var(--faint);font-size:13.5px}
 .ops{display:flex;gap:6px;justify-content:flex-end;align-items:center}
 .op{width:34px;height:34px;border-radius:9px;display:grid;place-items:center;color:var(--muted);transition:.15s}
 .op:hover{background:var(--pBg);color:var(--primary)}
 .op.danger:hover{color:var(--red);background:var(--redBg)}
 .op[disabled]{opacity:.3;pointer-events:none}
-.empty{padding:60px 20px;text-align:center;color:var(--muted)}
+.empty{padding:60px 20px;text-align:center;color:var(--muted);height:100%;min-height:160px;box-sizing:border-box;display:flex;flex-direction:column;align-items:center;justify-content:center}
 .empty .bigt{font-size:16px;color:var(--text);font-weight:600;margin-bottom:6px}
 .seg{display:flex;gap:2px;background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:4px}
-.seg button{padding:6px 14px;border-radius:7px;color:var(--muted);font-weight:600;font-size:13px;display:flex;gap:7px;align-items:center}
+.seg button{padding:6px 14px;border-radius:7px;color:var(--muted);font-weight:600;font-size:14px;display:flex;gap:7px;align-items:center}
 .seg button.on{background:var(--grad);color:#fff}
 .dirbox{flex:1;min-width:300px;display:flex;align-items:center;gap:8px;background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:0 12px;height:40px;color:var(--faint)}
 .dirbox input{border:0;outline:0;background:none;flex:1;height:100%;color:var(--text)}
@@ -176,20 +178,20 @@ svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:2;stroke-l
 .col{flex:1;display:flex;flex-direction:column-reverse;border-radius:5px 5px 2px 2px;overflow:hidden;min-height:2px;background:var(--panel2)}
 .col i{display:block}
 .col:hover{outline:2px solid var(--gold);outline-offset:1px}
-.xlab{display:flex;gap:5px;font-size:10.5px;color:var(--faint)}
+.xlab{display:flex;gap:5px;font-size:13.5px;color:var(--faint)}
 .xlab span{flex:1;text-align:center;overflow:hidden}
-.legend{display:flex;gap:16px;font-size:12px;color:var(--muted);flex-wrap:wrap;font-weight:500}
+.legend{display:flex;gap:16px;font-size:13.5px;color:var(--muted);flex-wrap:wrap;font-weight:500}
 .legend span{display:flex;align-items:center;gap:6px}
 .legend i{width:10px;height:10px;border-radius:3px;display:inline-block}
 .hbar{height:10px;border-radius:99px;background:var(--panel2);overflow:hidden;display:flex}
 .hbar i{display:block;height:100%}
-.tip{position:fixed;pointer-events:none;background:var(--panel);border:1px solid var(--border);box-shadow:var(--shadow);border-radius:10px;padding:10px 12px;font-size:12px;z-index:40;display:none;min-width:170px}
+.tip{position:fixed;pointer-events:none;background:var(--panel);border:1px solid var(--border);box-shadow:var(--shadow);border-radius:10px;padding:10px 12px;font-size:13.5px;z-index:40;display:none;min-width:170px}
 .tip div{display:flex;justify-content:space-between;gap:14px}
 .spark{width:100%;height:46px}
 #p-dash .grow{flex:1;min-height:250px}
 #p-dash .grow .box{min-height:0}
 #dChart{flex:1;height:auto;min-height:110px}
-.mlog{display:flex;align-items:center;gap:12px;padding:9px 0;border-bottom:1px solid var(--border);font-size:13px}
+.mlog{display:flex;align-items:center;gap:12px;padding:9px 0;border-bottom:1px solid var(--border);font-size:14px}
 .mlog:last-child{border-bottom:0}
 .mlog .ellip{flex:1}
 .sel{height:40px;border-radius:10px;border:1px solid var(--border);background:var(--panel) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23a39488' stroke-width='2.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E") no-repeat right 14px center;color:var(--text);padding:0 38px 0 14px;font:inherit;font-weight:600;outline:0;cursor:pointer;max-width:240px;-webkit-appearance:none;appearance:none}
@@ -201,7 +203,7 @@ svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:2;stroke-l
 [data-theme=light] .kc .k{color:var(--muted)}
 .kc .v{font-size:30px;font-weight:800;line-height:1.15}
 .kc.s .v{font-size:30px}
-.yaxis{width:52px;display:flex;flex-direction:column;justify-content:space-between;align-items:flex-end;font-size:11px;color:var(--faint);height:190px;padding-top:10px}
+.yaxis{width:52px;display:flex;flex-direction:column;justify-content:space-between;align-items:flex-end;font-size:13.5px;color:var(--faint);height:190px;padding-top:10px}
 .tabs2{display:flex;align-items:center;gap:4px;padding:8px 14px 0;border-bottom:1px solid var(--border);background:var(--panel2)}
 .tabs2 button{padding:9px 14px;color:var(--muted);font-weight:600;border-bottom:2px solid transparent;margin-bottom:-1px}
 .tabs2 button.on{color:var(--text);border-bottom-color:var(--primary)}
@@ -226,7 +228,7 @@ svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:2;stroke-l
 #tTable{flex:1;display:flex;flex-direction:column;min-height:0}
 .pager{margin-top:auto}
 .pager{display:flex;align-items:center;gap:10px;padding:12px 16px;border-top:1px solid var(--border);flex-wrap:wrap}
-.sel.sm{height:32px;font-size:13px;padding:0 32px 0 10px;background-position:right 10px center}
+.sel.sm{height:32px;font-size:14px;padding:0 32px 0 10px;background-position:right 10px center}
 .pg{min-width:34px;height:32px;padding:0 8px;border-radius:8px;border:1px solid var(--border);background:var(--panel);color:var(--muted);font-weight:700}
 .pg:hover{color:var(--text);border-color:var(--faint)}
 .pg.on{background:var(--grad);border-color:transparent;color:#fff}
@@ -236,13 +238,13 @@ svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:2;stroke-l
 .setting:last-child{border-bottom:0}
 .setting .t{flex:1;min-width:0}
 .setting .t b{display:block;font-weight:600}
-.setting .t span{color:var(--muted);font-size:12.5px;word-break:break-all}
+.setting .t span{color:var(--muted);font-size:14px;word-break:break-all}
 .switch{width:44px;height:24px;border-radius:99px;background:var(--border);position:relative;transition:.2s;flex:none}
 .switch::after{content:"";position:absolute;width:18px;height:18px;border-radius:50%;background:#fff;top:3px;left:3px;transition:.2s;box-shadow:0 1px 3px rgba(0,0,0,.3)}
 .switch.on{background:var(--grad)} .switch.on::after{left:23px}
 .input{height:38px;border-radius:10px;border:1px solid var(--border);background:var(--panel2);padding:0 12px;outline:0;width:240px}
 .input:focus{border-color:var(--primary)}
-.foot{display:flex;justify-content:space-between;color:var(--faint);font-size:13px;padding:0 4px;flex:none}
+.foot{display:flex;justify-content:space-between;color:var(--faint);font-size:14px;padding:0 4px;flex:none}
 
 .mask{position:fixed;inset:0;background:rgba(8,5,3,.62);backdrop-filter:blur(4px);display:none;align-items:center;justify-content:center;z-index:20}
 .mask.show{display:flex}
@@ -260,10 +262,18 @@ svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:2;stroke-l
 .toast{display:flex;gap:10px;align-items:center;background:var(--panel);border:1px solid var(--border);box-shadow:var(--shadow);border-radius:12px;padding:12px 16px;min-width:260px;max-width:440px;animation:pop .16s ease-out;white-space:pre-line}
 .toast.ok svg{color:var(--green)} .toast.err svg{color:var(--red)}
 .hide{display:none!important}
-.busy{position:fixed;top:14px;left:50%;transform:translateX(-50%);z-index:49;display:none;align-items:center;gap:10px;padding:9px 18px;border-radius:999px;background:var(--panel);border:1px solid var(--border);box-shadow:var(--shadow);font-size:13px;font-weight:600;color:var(--text)}
+.busy{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:49;display:none;flex-direction:column;align-items:center;gap:12px;padding:22px 30px;border-radius:16px;min-width:200px;pointer-events:none;background:var(--panel);border:1px solid var(--border);box-shadow:var(--shadow);font-size:14px;font-weight:600;color:var(--text)}
 .busy.show{display:flex}
-.busy i{width:16px;height:16px;border-radius:50%;border:2px solid var(--border);border-top-color:var(--primary);animation:sp .8s linear infinite}
-.offline{position:fixed;top:14px;left:50%;transform:translateX(-50%);z-index:50;display:none;align-items:center;gap:10px;padding:10px 18px;border-radius:999px;background:var(--panel);border:1px solid rgba(255,77,79,.5);box-shadow:var(--shadow);color:#ff9a9a;font-size:13px;font-weight:600}
+.busy i{width:34px;height:34px;border-radius:50%;border:3px solid var(--border);border-top-color:var(--primary);animation:sp .8s linear infinite}
+.oq{display:flex;flex-direction:column;gap:7px;min-width:0}
+.oqh{display:flex;align-items:baseline;justify-content:space-between;gap:12px;font-size:14px;color:var(--text);white-space:nowrap}
+.oqh .oqr{color:var(--muted);font-size:14px;overflow:hidden;text-overflow:ellipsis}
+.oqh .oqr b{color:var(--muted);font-weight:600;margin-left:8px}
+.oq .track{height:7px;border:none}
+.track i.q5{background:#3b82f6}
+.track i.q7{background:#f5b51b}
+.track i.q5.hi,.track i.q7.hi{background:#ff4d4f}
+.offline{position:fixed;top:14px;left:50%;transform:translateX(-50%);z-index:50;display:none;align-items:center;gap:10px;padding:10px 18px;border-radius:999px;background:var(--panel);border:1px solid rgba(255,77,79,.5);box-shadow:var(--shadow);color:#ff9a9a;font-size:14px;font-weight:600}
 .offline.show{display:flex}
 ::-webkit-scrollbar{width:10px;height:10px}::-webkit-scrollbar-thumb{background:var(--border);border-radius:10px;border:3px solid var(--bg)}
 html.lt1250{
@@ -360,28 +370,28 @@ html.lt900{ .grid2{grid-template-columns:1fr} .app{padding:14px 16px} .kpis{disp
         <div class="box-f"><span id="d1foot"></span><button class="btn sm" data-goto="acc">查看所有账号 ${'forward'}</button></div>
       </div>
       <div class="box">
-        <div class="box-h"><span class="ic g">${'clock'}</span>5 小时余量<span class="tag" id="d2tag"></span></div>
+        <div class="box-h"><span class="ic g">${'clock'}</span>5 小时限额<span class="tag" id="d2tag"></span></div>
         <div class="big num" id="d2big">-</div>
-        <div class="sub">当前账号 · 5 小时滚动窗口剩余 <span id="d2reset"></span></div>
+        <div class="sub">当前账号 · 已用 <span id="d2reset"></span></div>
         <div class="track"><i id="d2bar" style="width:0"></i></div>
         <div class="minis">
-          <div class="mini"><span class="k">5 小时已使用</span><b class="num v" id="d2used">-</b></div>
+          <div class="mini"><span class="k">5 小时剩余</span><b class="num v" id="d2used">-</b></div>
           <div class="mini"><span class="k">使用建议</span><b class="v" id="d2tip" style="font-size:16px">-</b></div>
         </div>
         <svg class="spark" id="d2spark" viewBox="0 0 300 46" preserveAspectRatio="none" style="flex:1;min-height:46px"></svg>
-        <div class="sub" id="d2sparkTip" style="font-size:11.5px;margin-top:2px"></div>
+        <div class="sub" id="d2sparkTip" style="font-size:13.5px;margin-top:2px"></div>
       </div>
       <div class="box">
-        <div class="box-h"><span class="ic">${'cal'}</span>7 天余量<span class="tag" id="d3tag"></span></div>
+        <div class="box-h"><span class="ic">${'cal'}</span>每周 · 所有模型<span class="tag" id="d3tag"></span></div>
         <div class="big num" id="d3big">-</div>
-        <div class="sub">当前账号 · 7 天周配额剩余 <span id="d3reset"></span></div>
+        <div class="sub">当前账号 · 已用 <span id="d3reset"></span></div>
         <div class="track"><i id="d3bar" style="width:0"></i></div>
         <div class="minis">
-          <div class="mini"><span class="k">本周已使用</span><b class="num v" id="d3used">-</b></div>
+          <div class="mini"><span class="k">本周剩余</span><b class="num v" id="d3used">-</b></div>
           <div class="mini"><span class="k">余量排名</span><b class="num v" id="d3rank">-</b></div>
         </div>
         <svg class="spark" id="d3spark" viewBox="0 0 300 46" preserveAspectRatio="none" style="flex:1;min-height:46px"></svg>
-        <div class="sub" id="d3sparkTip" style="font-size:11.5px;margin-top:2px"></div>
+        <div class="sub" id="d3sparkTip" style="font-size:13.5px;margin-top:2px"></div>
       </div>
       <div class="box">
         <div class="box-h"><span class="ic g">${'zap'}</span>今日 Token<span class="tag cream" id="d4tag">统计中</span></div>
@@ -391,7 +401,7 @@ html.lt900{ .grid2{grid-template-columns:1fr} .app{padding:14px 16px} .kpis{disp
           <div class="mini"><span class="k">今日请求</span><b class="num v" id="d4out">-</b></div>
         </div>
         <svg class="spark" id="d4bars" viewBox="0 0 300 46" preserveAspectRatio="none" style="flex:1;min-height:46px"></svg>
-        <div class="sub" id="d4barsTip" style="font-size:11.5px;margin-top:2px">今日每小时 Token</div>
+        <div class="sub" id="d4barsTip" style="font-size:13.5px;margin-top:2px">今日每小时 Token</div>
         <div class="box-f"><span id="d4foot">本月 -</span><button class="btn sm" data-goto="stats">详细统计 ${'forward'}</button></div>
       </div>
     </div>
@@ -429,7 +439,7 @@ html.lt900{ .grid2{grid-template-columns:1fr} .app{padding:14px 16px} .kpis{disp
     </div>
     <div id="accDesk" style="display:contents">
       <div class="card fill">
-        <div class="thead g-desk"><div>账号</div><div>额度余量 · 重置时间</div><div style="text-align:right">操作</div></div>
+        <div class="thead g-desk"><div>账号</div><div>套餐使用限额</div><div style="text-align:right">操作</div></div>
         <div class="tbody" id="dlist"></div>
       </div>
     </div>
@@ -602,25 +612,40 @@ function rebuildLive(){
       r5:u.session?u.session.resetAt:0, r7:u.week?u.week.resetAt:0, at:u.at }; });
 }
 let liveBusy=false, liveAt=0;
-// 手动查询：30 秒内只能点一次，按钮上显示倒计时
-let manualAt=0;
-function liveCooldown(){ const b=document.querySelector('#dLive'); if(!b) return; const left=Math.ceil((manualAt+30e3-Date.now())/1000);
-  if (left>0) { b.disabled=true; b.innerHTML=ico('refresh')+left+' 秒后可再查'; setTimeout(liveCooldown,1000); }
+// 查询锁：每次查询（打开时自动查、手动点、全部刷新）之后都要等一段时间才能再查；被官方限流时按官方给的时间
+let lockUntil=0;
+function lockLeft(){ return Math.max(0, Math.ceil((lockUntil-Date.now())/1000)); }
+function liveCooldown(){ const b=document.querySelector('#dLive'); if(!b) return; const left=lockLeft();
+  if (liveBusy) { b.disabled=true; b.innerHTML=ico('refresh')+'查询中…'; return; }
+  if (left>0) { b.disabled=true; b.innerHTML=ico('refresh')+left+' 秒后可再查'; }
   else { b.disabled=false; b.innerHTML=ico('refresh')+'查询官方余量'; } }
+setInterval(liveCooldown, 1000);
+// 某个账号还没有官方数据时，锁一解开就自动补查一次（有数据后不再自动查）
+setInterval(()=>{ if (!offline && S && S.desktop && lockLeft()===0 && !liveBusy && S.desktop.some(p=>p.live&&!DUSAGE[p.id])) refreshLive(true); }, 5000);
 async function refreshLive(silent){
-  if (liveBusy) return; liveBusy=true; const b=document.querySelector('#dLive'); if(b) b.disabled=true;
+  if (liveBusy || lockLeft()>0) return; liveBusy=true; liveCooldown();
   const done=busy('正在查询官方实时余量…');
   try{
     const list=(S.desktop||[]).filter(p=>p.live);
     if (!list.length && !silent) toast('没有已登录的桌面账号',false);
-    await Promise.all(list.map(p=>api('desktop/usage',{id:p.id}).then(r=>{ DUSAGE[p.id]=r; }).catch(e=>{ if(!silent) toast('「'+M(p.remark)+'」查询失败：'+e.message,false); })));
-    rebuildLive(); liveAt=Date.now(); renderAll(); if(!silent && list.length) toast('已更新官方余量');
+    const errs=[];
+    await Promise.all(list.map(p=>api('desktop/usage',{id:p.id}).then(r=>{
+      if (r.session||r.week) DUSAGE[p.id]=r;
+      if (r.nextAt) lockUntil=Math.max(lockUntil, r.nextAt);
+      if (r.error) errs.push('「'+M(p.remark)+'」'+r.error);
+    }).catch(e=>errs.push('「'+M(p.remark)+'」'+e.message))));
+    lockUntil=Math.max(lockUntil, Date.now()+30e3);
+    rebuildLive(); liveAt=Date.now(); renderAll();
+    if (!silent) { if (errs.length) toast(errs.join('\n')+(Object.keys(DUSAGE).length?'\n（先显示最近一次的数据）':''),false); else if (list.length) toast('已更新官方余量'); }
   } finally { done(); liveBusy=false; liveCooldown(); }
 }
 function remain(q, id){
   const L=id&&LIVE[id], P=id&&(S.desktop||[]).find(x=>x.id===id);
   if (L) { const now=Date.now(); return {h5:L.h5, d7:L.d7, t:Date.now(), r5:L.r5>now?L.r5:0, r7:L.r7>now?L.r7:0, live:true, at:L.at}; }
-  if (P) return {h5:null, d7:null, t:0, r5:0, r7:0};
+  // 限流或还没查到时：用桌面 App 自己 20 分钟内记录的官方数据
+  if (P) { const now=Date.now();
+    if (q && q.t && now-q.t<20*60e3 && q.fiveHour>=0) return {h5:100-q.fiveHour, d7:q.sevenDay>=0?100-q.sevenDay:null, t:q.t, r5:q.fiveReset>now?q.fiveReset:0, r7:q.sevenReset>now?q.sevenReset:0, live:true, at:'桌面 App 记录于 '+ago(q.t)};
+    return {h5:null, d7:null, t:0, r5:0, r7:0}; }
   if (!q) return {h5:null, d7:null, t:0};
   const manual = id ? weeklyNext(WR()[id]) : 0;
   if (manual) { q = Object.assign({}, q, {sevenReset: manual}); if (q.t < manual - 7*86400e3) q.sevenDay = 0; }
@@ -639,7 +664,12 @@ function countdown(ms){ let s=Math.max(0,Math.floor((ms-Date.now())/1000)); cons
   return d>0 ? d+'天'+h+'时' : h+':'+p(m)+':'+p(x); }
 const resetHtml = (ms,live,used) => ms ? `<span class="rs" title="${live?'官方实时数据':'根据用量记录推算，可能比实际晚十几分钟'}">${used!=null?'已用 '+used+'% · ':''}${live?'':'约 '}${resetAt(ms)} 重置 · <b data-cd="${ms}">${countdown(ms)}</b></span>` : '';
 setInterval(()=>{ document.querySelectorAll('[data-cd]').forEach(e=>{ const ms=+e.dataset.cd; if (ms<=Date.now()) { e.textContent='已重置'; } else e.textContent=countdown(ms); }); }, 1000);
-const qbar = (label, left, reset, pid, live) => `<div class="qbar"><span>${label}</span><div class="track"><i class="${lvl(left)}" style="width:${left??0}%"></i></div><b class="num">${pctTxt(left)}</b>${reset?`<div class="rline"${pid?` data-wr="${esc(pid)}" title="点击设置每周重置时间"`:''}>${reset==='set'?'<span class="setwr">点此填写每周重置时间</span>':resetHtml(reset,live,left==null?null:100-left)}</div>`:''}${left!=null&&!reset?`<div class="rline"><span class="rs">已用 ${100-left}%</span></div>`:''}</div>`;
+const WD=['周日','周一','周二','周三','周四','周五','周六'];
+function resetTxt(ms){ if(!ms) return ''; ms=Math.round(ms/60000)*60000; const d=new Date(ms), now=new Date(), p=n=>String(n).padStart(2,'0'), hm=p(d.getHours())+':'+p(d.getMinutes());
+  return (d.toDateString()===now.toDateString() ? '今天' : ms-now.getTime()<6.5*86400e3 ? WD[d.getDay()] : (d.getMonth()+1)+'/'+d.getDate()+' ')+hm+' 重置'; }
+const qbar = (label, left, reset) => { const is5=/^5/.test(label), used=left==null?null:100-left;
+  return `<div class="oq"><div class="oqh"><span>${is5?'5 小时限额':'每周 · 所有模型'}</span><span class="oqr">${reset&&reset!=='set'?resetTxt(reset):''}<b>${used==null?'--':used+'%'}</b></span></div>
+    <div class="track"><i class="${is5?'q5':'q7'} ${used>=90?'hi':''}" style="width:${used??0}%"></i></div></div>`; };
 
 let offline=false;
 function setOffline(v){ if (offline===v) return; offline=v; $('#offline').classList.toggle('show', v); }
@@ -739,26 +769,26 @@ function renderDash(){
   $('#d1bar').style.width = (withQ.length? healthy/withQ.length*100 : 0)+'%';
   $('#d1foot').textContent = S.desktopRunning ? '桌面 App 运行中' : '桌面 App 未运行';
   // 每个账号的官方余量（5H / 7 天）
-  const mini=(k,v)=>`<div style="display:grid;grid-template-columns:30px 1fr 38px;align-items:center;gap:8px;font-size:12px;color:var(--muted)"><span>${k}</span>
-      <div class="track" style="margin:0;height:6px"><i class="${lvl(v)}" style="width:${v??0}%"></i></div><b class="num" style="text-align:right;color:var(--text)">${pctTxt(v)}</b></div>`;
+  const mini=(k,v)=>{ const u=v==null?null:100-v; return `<div style="display:grid;grid-template-columns:34px 1fr 38px;align-items:center;gap:8px;font-size:13.5px;color:var(--muted)"><span>${k}</span>
+      <div class="track" style="margin:0;height:6px;border:none"><i class="${k==='5小时'?'q5':'q7'} ${u>=90?'hi':''}" style="width:${u??0}%"></i></div><b class="num" style="text-align:right;color:var(--muted);font-weight:600">${u==null?'--':u+'%'}</b></div>`; };
   $('#d1list').innerHTML = S.desktop.map(p=>{ const q=remain(p.quota,p.id);
     return `<div style="display:flex;gap:10px;align-items:center">${avatar(p.email||p.id,p.remark)}
-      <div style="flex:1;min-width:0"><div style="display:flex;align-items:center;gap:6px;font-weight:700;font-size:13px;margin-bottom:4px"><span class="ellip">${esc(M(p.remark))}</span>${p.active?'<span class="tag main" style="font-size:11px">当前</span>':''}</div>
-      ${mini('5H',q.h5)}${mini('7天',q.d7)}</div></div>`; }).join('') || '<div class="sub">添加账号后显示</div>';
+      <div style="flex:1;min-width:0"><div style="display:flex;align-items:center;gap:6px;font-weight:700;font-size:14px;margin-bottom:4px"><span class="ellip">${esc(M(p.remark))}</span>${p.active?'<span class="tag main" style="font-size:13.5px">当前</span>':''}</div>
+      ${mini('5小时',q.h5)}${mini('每周',q.d7)}</div></div>`; }).join('') || '<div class="sub">添加账号后显示</div>';
   const r=remain(cur&&cur.quota,cur&&cur.id);
   const setQ=(big,bar,tag,foot,v)=>{
-    $(big).innerHTML = v==null ? '--' : `${v}<small>%</small>`;
-    if (bar) { $(bar).style.width=(v??0)+'%'; $(bar).className=lvl(v); }
+    $(big).innerHTML = v==null ? '--' : `${100-v}<small>%</small>`;
+    if (bar) { $(bar).style.width=(v==null?0:100-v)+'%'; $(bar).className=(bar==='#d2bar'?'q5':'q7')+(v!=null&&v<=10?' hi':''); }
     $(tag).className='tag '+(v==null?'gray':v<20?'red':v<50?'yellow':'green');
     $(tag).textContent = v==null?'暂无数据':v<20?'紧张':v<50?'一般':'充足';
     const fe=$(foot); if (fe) fe.textContent = r.t ? '' : '';
   };
   setQ('#d2big','#d2bar','#d2tag','#d2foot',r.h5);
   setQ('#d3big','#d3bar','#d3tag','#d3foot',r.d7);
-  $('#d2reset').innerHTML = r.r5 ? '<br>'+resetHtml(r.r5,r.live,r.h5==null?null:100-r.h5) : '';
-  $('#d3reset').innerHTML = r.r7 ? '<br>'+resetHtml(r.r7,r.live,r.d7==null?null:100-r.d7) : '';
-  $('#d3used').textContent = r.d7==null ? '--' : (100-r.d7)+'%';
-  $('#d2used').textContent = r.h5==null ? '--' : (100-r.h5)+'%';
+  $('#d2reset').innerHTML = r.r5 ? '<br>'+resetTxt(r.r5) : '';
+  $('#d3reset').innerHTML = r.r7 ? '<br>'+resetTxt(r.r7) : '';
+  $('#d3used').textContent = r.d7==null ? '--' : r.d7+'%';
+  $('#d2used').textContent = r.h5==null ? '--' : r.h5+'%';
   const low = Math.min(r.h5??100, r.d7??100);
   $('#d2tip').textContent = r.h5==null ? '暂无数据' : low<20 ? '建议切换账号' : low<50 ? '适度使用' : '放心使用';
   $('#d2tip').style.color = r.h5==null ? '' : low<20 ? 'var(--red)' : low<50 ? 'var(--yellow)' : 'var(--green)';
@@ -777,7 +807,7 @@ function renderDash(){
   const rows=S.desktop.map(p=>({p, r:remain(p.quota,p.id)})).sort((a,b)=>(b.r.d7??-1)-(a.r.d7??-1)||(b.r.h5??-1)-(a.r.h5??-1));
   $('#rankBox').innerHTML = rows.slice(0,4).map(({p,r})=>`<div class="rec ${p.id===S.best?'best':''}">
       ${avatar(p.email||p.id,p.remark)}<div class="t"><div>${esc(M(p.remark))} ${p.active?'<span class="tag main">当前</span>':''}${p.id===S.best?'<span class="tag gold">推荐</span>':''}</div>
-      <div class="sub">5H 余量 ${pctTxt(r.h5)} · 7 天余量 ${pctTxt(r.d7)}</div></div>
+      <div class="sub">5 小时已用 ${r.h5==null?'--':(100-r.h5)+'%'} · 每周已用 ${r.d7==null?'--':(100-r.d7)+'%'}</div></div>
       <span class="pct ${lvl(r.d7)}">${pctTxt(r.d7)}</span>
       ${p.active?'':`<button class="op" data-sw="${esc(p.id)}" title="切换到此账号">${ico('swap')}</button>`}</div>`).join('') || '<div class="sub">添加账号后显示</div>';
   $('#bestBtn').disabled = !S.best;
@@ -804,7 +834,7 @@ function renderDesk(){
       <div class="who">${avatar(p.email||p.id,p.remark)}<div style="min-width:0"><div class="name">${esc(M(p.remark))}</div>
         <div class="tags">${healthTag(p)}
         ${p.email?`<span class="tag gold">${esc(M(p.email))}</span>`:'<span class="tag gray">未识别邮箱</span>'}</div>
-        <div class="sub" style="margin-top:6px;font-size:12px">上次使用 ${esc(d||'-')} ${esc(t||'')}</div></div></div>
+        <div class="sub" style="margin-top:6px;font-size:13.5px">上次使用 ${esc(d||'-')} ${esc(t||'')}</div></div></div>
       <div class="qbars rq" title="${r.live?'官方实时数据 · 查询于 '+esc(r.at||''):(p.live?'正在查询官方余量…':'这个账号还没登录桌面 App')}">${qbar('5H 余量',r.h5,r.r5,'',r.live)}${qbar('7天 余量',r.d7,r.r7,r.live?'':p.id,r.live)}</div>
       <div class="ops">${p.active
           ? `<button class="btn sm" data-a="launch" ${S.desktopRunning?'disabled':''}>${ico('launch')}${S.desktopRunning?'使用中':'打开 App'}</button>`
@@ -819,13 +849,13 @@ function renderDesk(){
 const USAGE={};
 function usageHtml(id){ const u=USAGE[id]; if(!u) return '';
   const line=(n,x)=>x?`<div class="sub" style="margin-top:4px">${n}已用 <b style="color:var(--text)">${x.used}%</b> · 重置 ${esc(x.resets)}</div>`:'';
-  return line('当前会话',u.session)+line('本周（所有模型）',u.week)+`<div class="sub" style="font-size:11.5px">官方实时数据 · 查询于 ${esc(u.at)}</div>`; }
+  return line('当前会话',u.session)+line('本周（所有模型）',u.week)+`<div class="sub" style="font-size:13.5px">官方实时数据 · 查询于 ${esc(u.at)}</div>`; }
 function renderCli(){
   $('#recent').innerHTML=(S.recent||[]).map(r=>`<option value="${esc(r)}">`).join('');
   if (!$('#cdir').value && S.recent && S.recent.length) $('#cdir').value=S.recent[0];
   const cs=S.cliStatus||{};
   $('#cliBanner').innerHTML = cs.installed
-    ? `<div class="notice" style="background:var(--greenBg);border-color:rgba(60,207,122,.3);color:var(--green)">${ico('check')}已检测到 Claude Code ${esc(cs.version||'')}<span class="spacer"></span><span class="num" style="font-size:12px;opacity:.8">${esc(cs.path)}</span></div>`
+    ? `<div class="notice" style="background:var(--greenBg);border-color:rgba(60,207,122,.3);color:var(--green)">${ico('check')}已检测到 Claude Code ${esc(cs.version||'')}<span class="spacer"></span><span class="num" style="font-size:13.5px;opacity:.8">${esc(cs.path)}</span></div>`
     : `<div class="notice" style="background:var(--redBg);border-color:rgba(255,77,79,.35);color:#ff9a9a">${ico('info')}这台电脑还没有安装 Claude Code（claude 命令），终端账号需要先安装它。<span class="spacer"></span><button class="btn sm" id="cliRecheck">${ico('refresh')}重新检测</button><button class="btn sm main" id="cliInstall">${ico('launch')}一键安装</button></div>`;
   const curDir=($('#cdir').value||'').toLowerCase();
   $('#cdirChips').innerHTML = (S.recent||[]).length ? '<span class="sub">常用项目：</span>' + S.recent.slice(0,8).map(d=>{ const leaf=d.split(/[\\/]/).filter(Boolean).pop()||d;
@@ -867,7 +897,7 @@ function renderSess(){
     return `<div class="tr g-sess slim"><div class="ellip" style="font-weight:600">${esc(s.title||'(无标题)')} ${s.archived?'<span class="tag gray">已归档</span>':''}</div>
       <div class="ellip"><span class="tag gold">${esc(M(s.account))}</span></div>
       <div class="ellip"><span class="tag cream">${esc(s.model||'-')}</span></div>
-      <div class="ellip num" style="color:var(--muted);font-size:12.5px">${esc(proj)}</div>
+      <div class="ellip num" style="color:var(--muted);font-size:14px">${esc(proj)}</div>
       <div class="time">${d}<small>${t} · ${ago(s.last)}</small></div>
       <div><button class="op" data-open="${esc(s.cwd)}" title="打开项目目录">${ico('folder')}</button></div></div>`; }).join('')
     : '<div class="empty"><div class="bigt">没有会话记录</div>桌面 App 里的 Claude Code 会话会显示在这里</div>';
@@ -986,7 +1016,7 @@ function rankTable(rows, label){
   const tot=rows.reduce((a,r)=>a+r.total,0)||1;
   return `<div class="tblwrap"><table class="tbl"><tr><th>名称</th><th class="r">请求</th><th class="r">新增输入</th><th class="r">输出</th><th class="r">缓存创建</th><th class="r">缓存命中</th><th class="r">命中率</th><th class="r">Tokens</th><th class="r">成本</th><th style="width:22%">占比</th></tr>`
     + (rows.length ? rows.map(r=>`<tr><td class="ellip" style="max-width:320px">${esc(label(r.name))}</td><td class="r num">${r.requests.toLocaleString()}</td><td class="r num">${fmt(r.input)}</td><td class="r num">${fmt(r.output)}</td><td class="r num">${fmt(r.cacheWrite)}</td><td class="r num">${fmt(r.cacheRead)}</td><td class="r num">${r.hitRate}%</td><td class="r num">${fmt(r.total)}</td><td class="r num" style="color:var(--gold)">${money(r.cost)}</td>
-      <td><div class="hbar">${[r.input,r.output,r.cacheRead,r.cacheWrite].map((v,j)=>`<i style="width:${v/tot*100}%;background:${CH[j]}"></i>`).join('')}</div><div class="sub" style="font-size:11px">${(r.total/tot*100).toFixed(1)}%</div></td></tr>`).join('')
+      <td><div class="hbar">${[r.input,r.output,r.cacheRead,r.cacheWrite].map((v,j)=>`<i style="width:${v/tot*100}%;background:${CH[j]}"></i>`).join('')}</div><div class="sub" style="font-size:13.5px">${(r.total/tot*100).toFixed(1)}%</div></td></tr>`).join('')
       : '<tr><td colspan="10" class="sub" style="text-align:center;padding:40px">暂无数据</td></tr>') + '</table></div>';
 }
 const projLabel = n => n.startsWith('(') ? n : n.split(/[\\/]/).filter(Boolean).slice(-2).join('\\');
@@ -1049,11 +1079,11 @@ function renderLogs(){
     .map(([k,t,c])=>`<option value="${esc(k)}" ${lFilter===k?'selected':''}>${esc(t)}（${c}）</option>`).join('');
   const list=LOGS.filter(l=>lFilter==='all'||(lFilter==='fail'?!l.ok:l.action===lFilter));
   PG_RENDER.oplog=renderLogs; setTimeout(()=>{ $('#llistPg').innerHTML=pager('oplog', list.length); });
-  $('#llist').innerHTML = list.length ? pageOf('oplog', list).map(l=>`<div class="tr g-log slim"><div class="num" style="font-size:12.5px;color:var(--muted)">${esc(l.t)}</div>
+  $('#llist').innerHTML = list.length ? pageOf('oplog', list).map(l=>`<div class="tr g-log slim"><div class="num" style="font-size:14px;color:var(--muted)">${esc(l.t)}</div>
       <div><span class="tag ${l.action.includes('切换')?'main':l.action.includes('删除')?'red':'gold'}">${esc(l.action)}</span></div>
       <div class="ellip">${esc(M(l.target))}${l.detail?`<div class="sub ellip" style="color:${l.ok?'var(--muted)':'var(--red)'}">${esc(l.detail)}</div>`:''}</div>
       <div>${l.ok?'<span class="tag green">成功</span>':'<span class="tag red">失败</span>'}</div>
-      <div class="num" style="text-align:right;color:var(--muted);font-size:12.5px">${l.ms>=1000?(l.ms/1000).toFixed(1)+'s':l.ms+'ms'}</div></div>`).join('')
+      <div class="num" style="text-align:right;color:var(--muted);font-size:14px">${l.ms>=1000?(l.ms/1000).toFixed(1)+'s':l.ms+'ms'}</div></div>`).join('')
     : '<div class="empty"><div class="bigt">暂无日志</div>切换、添加、删除账号等操作都会记录在这里</div>';
 }
 $('#lchips').onchange=e=>{ lFilter=e.target.value; pgReset('oplog'); renderLogs(); };
@@ -1116,7 +1146,7 @@ function renderScan(){
       {name:'本工具数据', note:'设置、操作日志、定价、窗口缓存', path:st.stateDir||''}];
     $('#scanInfo').textContent='尚未扫描';
     $('#scanList').innerHTML = rows.map(x=>`<div class="setting"><div class="t"><b>${esc(M(x.name))} ${x.active?'<span class="tag main">当前使用</span>':''}${x.kind==='desktop'&&!x.active?'<span class="tag gray">已保存</span>':''}</b>
-        <span>${esc(x.note)}</span><br><span class="num" style="font-size:11.5px">${esc(x.path)}</span></div>
+        <span>${esc(x.note)}</span><br><span class="num" style="font-size:13.5px">${esc(x.path)}</span></div>
       <div style="text-align:right;min-width:150px"><div class="sub">未扫描</div></div>
       <div style="display:flex;gap:8px"><button class="btn sm" data-scan>${ico('search')}扫描</button><button class="btn sm" data-path="${esc(x.path)}">${ico('folder')}打开</button></div></div>`).join('');
     return;
@@ -1126,7 +1156,7 @@ function renderScan(){
   const max=Math.max(1,...SCAN.items.map(x=>x.size));
   $('#scanList').innerHTML = SCAN.items.map(x=>`<div class="setting">
       <div class="t"><b>${esc(M(x.name))} ${x.active?'<span class="tag main">当前使用</span>':''}${x.kind==='desktop'&&!x.active?'<span class="tag gray">已保存</span>':''}</b>
-        <span>${esc(x.note)}</span><br><span class="num" style="font-size:11.5px">${esc(x.path)}</span>
+        <span>${esc(x.note)}</span><br><span class="num" style="font-size:13.5px">${esc(x.path)}</span>
         <div class="hbar" style="margin-top:8px;max-width:520px"><i style="width:${x.size/max*100}%;background:var(--grad)"></i></div></div>
       <div style="text-align:right;min-width:150px"><div class="num" style="font-size:18px;font-weight:800">${x.exists?fmtSize(x.size):'不存在'}</div>
         <div class="sub">${x.files.toLocaleString()} 个文件${x.cache?` · 缓存 ${fmtSize(x.cache)}`:''}</div></div>
@@ -1199,9 +1229,7 @@ async function doSwitch(p){
 document.addEventListener('click', async e=>{
   const sw=e.target.closest('[data-sw]'); if (sw){ doSwitch(S.desktop.find(x=>x.id===sw.dataset.sw)); return; }
   if (e.target.closest('#dRefresh')) { run('state',null,'刷新中…','已刷新'); return; }
-  if (e.target.closest('#dLive')) { const left=Math.ceil((manualAt+30e3-Date.now())/1000);
-    if (left>0) { toast('查询太频繁，请 '+left+' 秒后再试',false); return; }
-    manualAt=Date.now(); liveCooldown(); refreshLive(false); return; }
+  if (e.target.closest('#dLive')) { const left=lockLeft(); if (left>0) { toast('还要等 '+left+' 秒才能再查',false); return; } refreshLive(false); return; }
   if (e.target.closest('#dAdd')) {
     const name=await dialog({title:'添加 Claude 桌面 App 账号', text:'先给新账号起个备注名（比如「工作号」）。\n确定后会关闭 Claude 桌面 App，再打开全新的官方登录页，用另一个账号登录即可。\n当前账号会自动保存，以后一键切回。', input:'', okText:'去登录'});
     if (name!==null) run('desktop/add',{remark:name||'新账号'},'正在关闭 Claude 并准备登录页…','已打开 Claude 登录页，请在 App 里完成登录'); return;
@@ -1279,7 +1307,7 @@ async function refreshAll(silent){
   try{
     // 全部刷新也包含官方实时余量（30 秒内查过的不重复查）
     const doneAll = silent ? ()=>{} : busy('正在刷新全部数据…');
-    try{ await Promise.all([refresh(true).then(()=>{ if (Date.now()-liveAt>=30e3) return refreshLive(true); }), loadStats(!silent), loadSessions(), loadLogs(), (SCAN && (!silent || page==='set')) ? doScan() : null]); } finally{ doneAll(); }
+    try{ await Promise.all([refresh(true).then(()=>{ if (lockLeft()===0) return refreshLive(true); }), loadStats(!silent), loadSessions(), loadLogs(), (SCAN && (!silent || page==='set')) ? doScan() : null]); } finally{ doneAll(); }
     lastAllAt=new Date().toTimeString().slice(0,8); updateRefreshTip();
     if (silent) return;
     // 等用量统计重新读完
@@ -1292,7 +1320,6 @@ document.addEventListener('keydown', e=>{ if (e.key==='F5') { e.preventDefault()
 setAutoAll(AUTO_ALL);
 // 官方余量：启动后查一次，之后每 1 分钟静默更新（由 Claude Code 自己用 /usage 查询，不影响正常使用）
 (function kick(){ if (S && S.desktop && S.desktop.length) refreshLive(true); else setTimeout(kick, 300); })();
-setInterval(()=>{ if (S && S.desktop && S.desktop.some(p=>p.live) && !offline && Date.now()-liveAt>60e3) refreshLive(true); }, 10000);
 
 // ---------- 自适应缩放：小于 1280×780 时整体略微缩小（最小 85%） ----------
 const BASE_W=1280, BASE_H=780;
