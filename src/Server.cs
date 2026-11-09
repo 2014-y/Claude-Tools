@@ -546,6 +546,11 @@ namespace ClaudeSwitcher
             switch (name)
             {
                 case "ui/show": ShowUi(); return null;
+                case "proxy/get": return ProxyPool.Get();
+                case "proxy/save": { var r = ProxyPool.Save(S(a, "cfg")); OpLog.Add("代理设置", "保存", true, "代理池 " + ((System.Collections.ICollection)r["items"]).Count + " 个", 0); return r; }
+                case "proxy/import": return ProxyPool.Import(S(a, "text"));
+                case "proxy/test": return ProxyPool.Test(S(a, "id"));
+                case "proxy/testUrl": return ProxyPool.TestUrl(S(a, "url"));
                 case "ui/theme": if (WebUi.Available) WebUi.SetTheme(S(a, "dark") != "0"); return null;
                 case "ping": LastPing = DateTime.Now; windowEverOpened = true; return File.GetLastWriteTimeUtc(Application.ExecutablePath).Ticks.ToString();
                 case "state": LastPing = DateTime.Now; windowEverOpened = true; return State();
@@ -779,7 +784,7 @@ namespace ClaudeSwitcher
             var acc = Store.Load().FirstOrDefault(x => x.Folder == id);
             if (acc == null) throw new Exception("找不到这个账号");
             if (!acc.LoggedIn) throw new Exception("这个终端账号还没有登录，请先点「新对话」登录一次");
-            return RunUsage(acc.IsDefault ? null : acc.Dir, acc.Remark);
+            return RunUsage(acc.IsDefault ? null : acc.Dir, acc.Remark, ProxyPool.For("c:" + acc.Folder, "cli"));
         }
 
         // 桌面账号：用它自己已有的登录只读查询官方用量（见 Live.cs）
@@ -787,15 +792,16 @@ namespace ClaudeSwitcher
         {
             var p = DesktopStore.Load().FirstOrDefault(x => x.Id == id);
             if (p == null) throw new Exception("找不到这个账号");
-            return LiveUsage.Cached(p.Id, () => LiveUsage.Query(p.Dir));
+            return LiveUsage.Cached(p.Id, () => LiveUsage.Query(p.Dir, ProxyPool.For("d:" + p.Id, "quota")));
         }
         static readonly object UsageLock = new object();
-        static Dictionary<string, object> RunUsage(string configDir, string name)
+        static Dictionary<string, object> RunUsage(string configDir, string name, string proxy = null)
         {
             var st = CliStatus(false); if (!(bool)st["installed"]) st = CliStatus(true);
             if (!(bool)st["installed"]) throw new Exception("这台电脑还没有安装 Claude Code");
             var psi = new ProcessStartInfo((string)st["path"], "-p \"/usage\"") { UseShellExecute = false, RedirectStandardOutput = true, RedirectStandardError = true, CreateNoWindow = true, StandardOutputEncoding = Encoding.UTF8, WorkingDirectory = Settings.StateDir };
             if (configDir == null) psi.EnvironmentVariables.Remove("CLAUDE_CONFIG_DIR"); else psi.EnvironmentVariables["CLAUDE_CONFIG_DIR"] = configDir;
+            if (!string.IsNullOrEmpty(proxy)) { psi.EnvironmentVariables["HTTPS_PROXY"] = proxy; psi.EnvironmentVariables["HTTP_PROXY"] = proxy; }
             string output;
             using (var p = Process.Start(psi))
             {
@@ -827,6 +833,9 @@ namespace ClaudeSwitcher
             var psi = new ProcessStartInfo("cmd.exe", "/k title " + title + " && " + exe + extra) { UseShellExecute = false, WorkingDirectory = dir };
             if (acc.IsDefault) psi.EnvironmentVariables.Remove("CLAUDE_CONFIG_DIR");
             else psi.EnvironmentVariables["CLAUDE_CONFIG_DIR"] = acc.Dir;
+            // 这个终端账号绑定 / 分配到的代理
+            var px = ProxyPool.For("c:" + acc.Folder, "cli");
+            if (px != null) { psi.EnvironmentVariables["HTTPS_PROXY"] = px; psi.EnvironmentVariables["HTTP_PROXY"] = px; }
             Process.Start(psi);
             Store.SaveRecent(dir);
         }

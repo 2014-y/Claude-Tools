@@ -166,7 +166,7 @@ $csc = Join-Path $env:WINDIR 'Microsoft.NET\Framework64\v4.0.30319\csc.exe'
     "/resource:$(Join-Path $src 'lib\webview2\x64\WebView2Loader.dll'),WebView2Loader.x64.dll" `
     "/resource:$(Join-Path $src 'lib\webview2\x86\WebView2Loader.dll'),WebView2Loader.x86.dll" `
     /r:System.Windows.Forms.dll /r:System.Drawing.dll /r:System.Core.dll /r:System.Web.Extensions.dll /r:System.Management.dll /r:System.Security.dll /r:"$(Join-Path $src 'lib\webview2\Microsoft.Web.WebView2.Core.dll')" /r:"$(Join-Path $src 'lib\webview2\Microsoft.Web.WebView2.WinForms.dll')" `
-    (Join-Path $src 'ClaudeSwitcher.cs') (Join-Path $src 'Desktop.cs') (Join-Path $src 'Server.cs') (Join-Path $src 'Extras.cs') (Join-Path $src 'Usage.cs') (Join-Path $src 'Live.cs') (Join-Path $src 'AppWindow.cs')
+    (Join-Path $src 'ClaudeSwitcher.cs') (Join-Path $src 'Desktop.cs') (Join-Path $src 'Server.cs') (Join-Path $src 'Extras.cs') (Join-Path $src 'Usage.cs') (Join-Path $src 'Live.cs') (Join-Path $src 'AppWindow.cs') (Join-Path $src 'Proxy.cs')
 if ($LASTEXITCODE -ne 0) { throw "编译失败" }
 Write-Host "OK -> $out"
 

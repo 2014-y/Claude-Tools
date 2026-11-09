@@ -197,7 +197,7 @@ namespace ClaudeSwitcher
             return new Dictionary<string, object> { { "used", (int)Math.Round(Convert.ToDouble(w["utilization"])) }, { "resetAt", reset } };
         }
 
-        public static Dictionary<string, object> Query(string dir)
+        public static Dictionary<string, object> Query(string dir, string proxy = null)
         {
             long exp; string tok;
             try { tok = ReadToken(dir, out exp); }
@@ -209,6 +209,7 @@ namespace ClaudeSwitcher
             rq.Headers["Authorization"] = "Bearer " + tok;
             rq.Headers["anthropic-beta"] = "oauth-2025-04-20";
             rq.UserAgent = "claude-tools"; rq.Timeout = 20000; rq.ReadWriteTimeout = 20000;
+            if (!string.IsNullOrEmpty(proxy)) rq.Proxy = ProxyPool.ToWebProxy(proxy);
             string body;
             try { using (var rs = rq.GetResponse()) using (var sr = new StreamReader(rs.GetResponseStream(), Encoding.UTF8)) body = sr.ReadToEnd(); }
             catch (WebException ex)

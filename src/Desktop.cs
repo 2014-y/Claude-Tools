@@ -325,6 +325,15 @@ namespace ClaudeSwitcher
                 Process.Start(new ProcessStartInfo("explorer.exe", "shell:AppsFolder\\" + MsixAppId()) { UseShellExecute = true });
                 return;
             }
+            // 当前账号绑定 / 分配到的代理（桌面 App 不支持带账号密码的代理，只传地址）
+            string args = "";
+            try
+            {
+                var m = ReadMarker(ActiveDir);
+                var px = m == null ? null : ProxyPool.For("d:" + m[0], "desktop");
+                if (px != null) args = "--proxy-server=\"" + ProxyPool.HostPort(px) + "\"";
+            }
+            catch { }
             var stub = Path.Combine(InstallDir, "claude.exe");
             string exe = File.Exists(stub) ? stub : null;
             if (exe == null && Directory.Exists(InstallDir))
@@ -332,7 +341,7 @@ namespace ClaudeSwitcher
                     .OrderByDescending(d => d, StringComparer.OrdinalIgnoreCase)
                     .Select(d => Path.Combine(d, "claude.exe")).FirstOrDefault(File.Exists);
             if (exe == null) throw new Exception("没有找到 Claude 桌面 App 的安装位置：" + InstallDir);
-            Process.Start(new ProcessStartInfo(exe) { UseShellExecute = true, WorkingDirectory = Path.GetDirectoryName(exe) });
+            Process.Start(new ProcessStartInfo(exe, args) { UseShellExecute = true, WorkingDirectory = Path.GetDirectoryName(exe) });
         }
 
         static void MoveRetry(string from, string to)
