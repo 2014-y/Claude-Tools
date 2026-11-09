@@ -133,6 +133,9 @@ namespace ClaudeSwitcher
             catch { }
         }
         public const int LockSeconds = 30;
+        // 被官方限流过的账号，接下来 1 小时内改为每 2 分钟查一次，避免反复撞限流
+        static readonly Dictionary<string, DateTime> Slow = new Dictionary<string, DateTime>();
+        static int Gap(string id) { DateTime s; return Slow.TryGetValue(id, out s) && DateTime.Now < s ? 120 : LockSeconds; }
         static long NowMs() { return DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(); }
         public static Dictionary<string, object> Cached(string id, Func<Dictionary<string, object>> query)
         {
@@ -143,8 +146,8 @@ namespace ClaudeSwitcher
                 if (Backoff.TryGetValue(id, out bo) && DateTime.Now < bo) return Answer(id, null, bo);
             }
             Dictionary<string, object> r = null; string err = null; DateTime next;
-            try { r = query(); next = DateTime.Now.AddSeconds(LockSeconds); }
-            catch (RateLimited ex) { err = ex.Message; next = DateTime.Now.AddSeconds(ex.Seconds); }
+            try { r = query(); lock (HistLock) next = DateTime.Now.AddSeconds(Gap(id)); }
+            catch (RateLimited ex) { err = ex.Message; next = DateTime.Now.AddSeconds(ex.Seconds); lock (HistLock) Slow[id] = DateTime.Now.AddHours(1); }
             catch (Exception ex) { err = ex.Message; next = DateTime.Now.AddSeconds(LockSeconds); }
             lock (HistLock)
             {

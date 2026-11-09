@@ -1313,7 +1313,7 @@ async function refreshAll(silent){
     if (silent) return;
     // 等用量统计重新读完
     for (let i=0; i<60 && STATS && STATS.scanning; i++) { await new Promise(r=>setTimeout(r,500)); await loadStats(); }
-    if (!offline) toast('已刷新全部数据');
+    if (!offline) { const l=lockLeft(), any=Object.values(DUSAGE)[0]; toast('已刷新全部数据'+(l>0 ? '\n官方额度上次更新于 '+(any&&any.at?any.at:'-')+'，'+l+' 秒后自动再查（官方限制查询频率）' : '\n官方额度已更新')); }
   } finally { b.classList.remove('spinning'); refreshing=false; }
 }
 $('#refreshAll').onclick=()=>refreshAll(false);
