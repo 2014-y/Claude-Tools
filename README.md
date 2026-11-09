@@ -14,7 +14,7 @@
 [![Downloads](https://img.shields.io/github/downloads/2014-y/Claude-Tools/total?style=for-the-badge&color=ffb21f&label=%E4%B8%8B%E8%BD%BD)](https://github.com/2014-y/Claude-Tools/releases)
 [![Platform](https://img.shields.io/badge/Windows-10%20%2F%2011-0078d7?style=for-the-badge&logo=windows&logoColor=white)](#-系统要求)
 [![.NET](https://img.shields.io/badge/.NET_Framework-4.x-512bd4?style=for-the-badge&logo=dotnet&logoColor=white)](#-系统要求)
-[![Size](https://img.shields.io/badge/%E5%AE%89%E8%A3%85%E5%8C%85-1.3_MB-3ccf7a?style=for-the-badge)](https://github.com/2014-y/Claude-Tools/releases/latest)
+[![Size](https://img.shields.io/badge/%E5%AE%89%E8%A3%85%E5%8C%85-2.4_MB-3ccf7a?style=for-the-badge)](https://github.com/2014-y/Claude-Tools/releases/latest)
 [![i18n](https://img.shields.io/badge/%E8%AF%AD%E8%A8%80-%E7%AE%80%20%7C%20%E7%B9%81%20%7C%20EN-ff4d8d?style=for-the-badge)](#-个性化设置)
 [![License](https://img.shields.io/badge/License-MIT-1f1f1f?style=for-the-badge)](LICENSE)
 
