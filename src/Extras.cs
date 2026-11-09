@@ -31,6 +31,7 @@ namespace ClaudeSwitcher
             { "maskDefault", true },
             { "notify", true },            // 托盘气泡通知
             { "syncSessions", true },      // 切换时把上一个账号的会话记录带到新账号
+            { "autoMerge", true },         // 自动合并所有账号的会话记录（启动时、每 5 分钟、切换后）
             { "syncClientSettings", true }, // 切换时把客户端设置（字号、主题、窗口布局等）带到新账号
             { "userName", "" },
             { "weeklyResets", "" }        // 手动设置的每周重置时间，JSON：{ 账号id: "5|07:00" }

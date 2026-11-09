@@ -802,7 +802,7 @@ function renderSess(){
     : '<div class="empty"><div class="bigt">没有会话记录</div>桌面 App 里的 Claude Code 会话会显示在这里</div>';
 }
 $('#sMerge').onclick=async()=>{
-  if (!await dialog({title:'合并所有账号的会话记录？', text:'会把所有桌面账号的会话记录互相补齐，合并后每个账号都能看到全部会话；任何账号里删除过的会话不会恢复。'+(S.desktopRunning?'\n\nClaude 桌面 App 正在运行，会先关闭，合并完自动重新打开（进行中的对话会中断）。':''), okText:'开始合并'})) return;
+  if (!await dialog({title:'合并所有账号的会话记录？', text:'会把所有桌面账号的会话记录互相补齐，合并后每个账号都能看到全部会话；任何账号里删除过的会话不会恢复。\n不会关闭桌面 App；合并后在桌面 App 里退出再打开一次，就能看到补齐的会话。', okText:'开始合并'})) return;
   loading(true,'正在合并会话记录…');
   try{ const d=await api('desktop/merge'); if (d && d.desktop) S=d; renderAll(); await loadSessions(); toast(d.mergeResult||'合并完成'); }
   catch(e){ toast(e.message,false); } finally{ loading(false); }
@@ -997,6 +997,7 @@ function renderSettings(){
     + `<div class="setting"><div class="t"><b>自动刷新全部数据</b><span>按间隔在后台刷新账号、余量、用量统计、会话记录和日志（右上角刷新按钮的绿点表示已开启）</span></div><select class="sel" id="autoAllSel">${[[60,'每 1 分钟（默认）'],[180,'每 3 分钟'],[300,'每 5 分钟'],[600,'每 10 分钟'],[0,'关闭']].map(([v,t])=>`<option value="${v}" ${v===AUTO_ALL?'selected':''}>${t}</option>`).join('')}</select></div>`
     + `<div class="setting"><div class="t"><b>界面字号</b><span>整个应用的文字和界面大小，窗口较小时会在此基础上自动略缩</span></div><select class="sel" id="uiScaleSel">${[[0.9,'小 90%'],[1,'标准 100%'],[1.12,'大 112%'],[1.25,'更大 125%']].map(([v,t])=>`<option value="${v}" ${Math.abs(v-UI_SCALE)<0.001?'selected':''}>${t}</option>`).join('')}</select></div>`;
   $('#setUse').innerHTML = row('syncSessions','切换时同步会话记录','把上一个账号的全部会话记录带到新账号，切换后桌面 App 里还能看到、继续之前的对话')
+    + row('autoMerge','自动合并所有账号的会话记录','启动时、每 5 分钟和切换账号后，自动把各账号的会话互相补齐（不关闭桌面 App；新增的会话在桌面 App 重新打开后显示）')
     + row('syncClientSettings','切换时同步客户端设置','把上一个账号里调好的字号（界面缩放）、主题、窗口大小与布局、MCP 配置带到新账号；不会带登录信息')
     + row('confirmSwitch','切换前确认','桌面 App 运行中时，切换前先弹窗确认')
     + row('maskDefault','默认脱敏显示','打开时隐藏邮箱中间部分（右上角眼睛按钮可临时切换）')

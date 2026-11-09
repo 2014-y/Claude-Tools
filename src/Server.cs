@@ -21,6 +21,7 @@ namespace ClaudeSwitcher
         static DateTime LastPing = DateTime.MinValue;
         static readonly JavaScriptSerializer Json = new JavaScriptSerializer { MaxJsonLength = int.MaxValue };
         static NotifyIcon tray;
+        static System.Threading.Timer autoMergeTimer;
         static SynchronizationContext ui;
         static bool windowEverOpened;
 
@@ -73,6 +74,8 @@ namespace ClaudeSwitcher
                     System.Threading.Tasks.TaskScheduler.UnobservedTaskException += (s, e) => { e.SetObserved(); OpLog.Add("程序异常", "后台任务", false, e.Exception.Message, 0); };
                     Settings.RefreshAutoStart();
                     StartServer(urlFile);
+                    // 自动合并所有账号的会话记录：启动后一次，之后每 5 分钟
+                    autoMergeTimer = new System.Threading.Timer(_ => DesktopStore.AutoMerge(), null, 15000, 5 * 60 * 1000);
                     if (Environment.GetEnvironmentVariable("CLAUDE_SWITCHER_NOBROWSER") == "1") { Thread.Sleep(Timeout.Infinite); return; }
                     RunTray(trayOnly);
                 }

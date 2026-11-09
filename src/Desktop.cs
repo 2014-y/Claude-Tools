@@ -314,6 +314,20 @@ namespace ClaudeSwitcher
         public static string LastSync = "";
         public static int[] LastCounts = new int[3];
 
+        // 自动合并：启动时、每 5 分钟、切换后各合并一次；有新增才写日志
+        public static void AutoMerge()
+        {
+            try
+            {
+                if (!Settings.Bool("autoMerge")) return;
+                if (Load().Count < 2) return;
+                var msg = MergeAll();
+                if (LastCounts[0] + LastCounts[2] > 0) { } // 计数在 MergeAll 内累加
+                if (msg.IndexOf("补齐 0 条") < 0 || msg.IndexOf("同步删除") >= 0) OpLog.Add("自动合并会话", "所有桌面账号", true, msg, 0);
+            }
+            catch (Exception ex) { OpLog.Add("自动合并会话", "所有桌面账号", false, ex.Message, 0); }
+        }
+
         // 手动合并：所有账号存档两两互相同步会话（含删除标记），结果是每个账号都有全部会话
         public static string MergeAll()
         {
@@ -321,8 +335,7 @@ namespace ClaudeSwitcher
             {
                 var profiles = Load();
                 if (profiles.Count < 2) throw new Exception("至少需要两个桌面账号才能合并");
-                bool running = IsRunning();
-                if (running) CloseDesktop();
+                // 合并只是往会话目录里新增文件，不需要也不再关闭桌面 App
                 int copied = 0, ws = 0, removed = 0, skipped = 0;
                 try
                 {
@@ -335,7 +348,7 @@ namespace ClaudeSwitcher
                             copied += LastCounts[0]; ws += LastCounts[1]; removed += LastCounts[2];
                         }
                 }
-                finally { if (running) try { LaunchDesktop(); } catch { } }
+                finally { }
                 var msg = "已合并 " + profiles.Count + " 个账号：补齐 " + copied + " 条会话记录" + (ws > 0 ? "（含 " + ws + " 个临时工作区）" : "") + (removed > 0 ? "，同步删除 " + removed + " 条" : "");
                 if (skipped > 0) msg += "；有账号还没登录过，已跳过";
                 return msg;
