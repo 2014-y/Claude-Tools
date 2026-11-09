@@ -356,6 +356,7 @@ html.lt900{ .grid2{grid-template-columns:1fr} .app{padding:14px 16px} .kpis{disp
         <div class="big num" id="d1big">-</div>
         <div class="sub" id="d1sub"></div>
         <div class="track"><i id="d1bar" style="width:0"></i></div>
+        <div id="d1list" style="display:flex;flex-direction:column;gap:10px;margin-top:14px;flex:1;min-height:0;overflow:auto"></div>
         <div class="box-f"><span id="d1foot"></span><button class="btn sm" data-goto="acc">查看所有账号 ${'forward'}</button></div>
       </div>
       <div class="box">
@@ -636,9 +637,9 @@ function resetAt(ms){ const d=new Date(ms), p=n=>String(n).padStart(2,'0'), now=
   return (d.toDateString()===now.toDateString() ? '' : (d.getMonth()+1)+'/'+d.getDate()+' ') + p(d.getHours())+':'+p(d.getMinutes()); }
 function countdown(ms){ let s=Math.max(0,Math.floor((ms-Date.now())/1000)); const d=Math.floor(s/86400); s%=86400; const h=Math.floor(s/3600), m=Math.floor(s%3600/60), x=s%60, p=n=>String(n).padStart(2,'0');
   return d>0 ? d+'天'+h+'时' : h+':'+p(m)+':'+p(x); }
-const resetHtml = (ms,live) => ms ? `<span class="rs" title="${live?'官方实时数据':'根据用量记录推算，可能比实际晚十几分钟'}">${live?'':'约 '}${resetAt(ms)} 重置 · <b data-cd="${ms}">${countdown(ms)}</b></span>` : '';
+const resetHtml = (ms,live,used) => ms ? `<span class="rs" title="${live?'官方实时数据':'根据用量记录推算，可能比实际晚十几分钟'}">${used!=null?'已用 '+used+'% · ':''}${live?'':'约 '}${resetAt(ms)} 重置 · <b data-cd="${ms}">${countdown(ms)}</b></span>` : '';
 setInterval(()=>{ document.querySelectorAll('[data-cd]').forEach(e=>{ const ms=+e.dataset.cd; if (ms<=Date.now()) { e.textContent='已重置'; } else e.textContent=countdown(ms); }); }, 1000);
-const qbar = (label, left, reset, pid, live) => `<div class="qbar"><span>${label}</span><div class="track"><i class="${lvl(left)}" style="width:${left??0}%"></i></div><b class="num">${pctTxt(left)}</b>${reset?`<div class="rline"${pid?` data-wr="${esc(pid)}" title="点击设置每周重置时间"`:''}>${reset==='set'?'<span class="setwr">点此填写每周重置时间</span>':resetHtml(reset,live)}</div>`:''}</div>`;
+const qbar = (label, left, reset, pid, live) => `<div class="qbar"><span>${label}</span><div class="track"><i class="${lvl(left)}" style="width:${left??0}%"></i></div><b class="num">${pctTxt(left)}</b>${reset?`<div class="rline"${pid?` data-wr="${esc(pid)}" title="点击设置每周重置时间"`:''}>${reset==='set'?'<span class="setwr">点此填写每周重置时间</span>':resetHtml(reset,live,left==null?null:100-left)}</div>`:''}${left!=null&&!reset?`<div class="rline"><span class="rs">已用 ${100-left}%</span></div>`:''}</div>`;
 
 let offline=false;
 function setOffline(v){ if (offline===v) return; offline=v; $('#offline').classList.toggle('show', v); }
@@ -709,10 +710,11 @@ function renderAll(){
 
 // 小走势图：hist=[[时间ms, 5H已用%, 7天已用%]...]，idx 选列，span 为时间跨度
 function drawSpark(sel, tipSel, hist, idx, span, label){
-  const now=Date.now(), pts=hist.filter(h=>h[0]>=now-span && h[idx]>=0), W=300, H=46, svg=$(sel);
-  if (pts.length<2){ svg.innerHTML=''; svg.style.display='none'; $(tipSel).textContent = label+'：数据积累中（每分钟记录一次）'; return; }
+  const now=Date.now(), t0=now-span, W=300, H=46, svg=$(sel), valid=hist.filter(h=>h[idx]>=0);
+  const before=valid.filter(h=>h[0]<t0).pop(), pts=(before?[[t0,before[1],before[2]]]:[]).concat(valid.filter(h=>h[0]>=t0));
+  if (!pts.length){ svg.innerHTML=''; svg.style.display='none'; $(tipSel).textContent = label+'：暂无数据'; return; }
   svg.style.display='';
-  const t0=Math.max(pts[0][0], now-span), xy=pts.map(p=>[(p[0]-t0)/(now-t0||1)*W, H-3-p[idx]/100*(H-6)]);
+  const xy=pts.map(p=>[(p[0]-t0)/span*W, H-3-p[idx]/100*(H-6)]);
   xy.push([W, xy[xy.length-1][1]]);
   const line=xy.map((p,i)=>(i?'L':'M')+p[0].toFixed(1)+','+p[1].toFixed(1)).join('');
   const gid='g'+sel.slice(1);
@@ -736,6 +738,13 @@ function renderDash(){
   $('#d1sub').textContent = `✓ ${S.cli.length} 个终端账号 · 今日切换 ${S.switchesToday??0} 次`;
   $('#d1bar').style.width = (withQ.length? healthy/withQ.length*100 : 0)+'%';
   $('#d1foot').textContent = S.desktopRunning ? '桌面 App 运行中' : '桌面 App 未运行';
+  // 每个账号的官方余量（5H / 7 天）
+  const mini=(k,v)=>`<div style="display:grid;grid-template-columns:30px 1fr 38px;align-items:center;gap:8px;font-size:12px;color:var(--muted)"><span>${k}</span>
+      <div class="track" style="margin:0;height:6px"><i class="${lvl(v)}" style="width:${v??0}%"></i></div><b class="num" style="text-align:right;color:var(--text)">${pctTxt(v)}</b></div>`;
+  $('#d1list').innerHTML = S.desktop.map(p=>{ const q=remain(p.quota,p.id);
+    return `<div style="display:flex;gap:10px;align-items:center">${avatar(p.email||p.id,p.remark)}
+      <div style="flex:1;min-width:0"><div style="display:flex;align-items:center;gap:6px;font-weight:700;font-size:13px;margin-bottom:4px"><span class="ellip">${esc(M(p.remark))}</span>${p.active?'<span class="tag main" style="font-size:11px">当前</span>':''}</div>
+      ${mini('5H',q.h5)}${mini('7天',q.d7)}</div></div>`; }).join('') || '<div class="sub">添加账号后显示</div>';
   const r=remain(cur&&cur.quota,cur&&cur.id);
   const setQ=(big,bar,tag,foot,v)=>{
     $(big).innerHTML = v==null ? '--' : `${v}<small>%</small>`;
@@ -746,8 +755,8 @@ function renderDash(){
   };
   setQ('#d2big','#d2bar','#d2tag','#d2foot',r.h5);
   setQ('#d3big','#d3bar','#d3tag','#d3foot',r.d7);
-  $('#d2reset').innerHTML = r.r5 ? '<br>'+resetHtml(r.r5,r.live) : '';
-  $('#d3reset').innerHTML = r.r7 ? '<br>'+resetHtml(r.r7,r.live) : '';
+  $('#d2reset').innerHTML = r.r5 ? '<br>'+resetHtml(r.r5,r.live,r.h5==null?null:100-r.h5) : '';
+  $('#d3reset').innerHTML = r.r7 ? '<br>'+resetHtml(r.r7,r.live,r.d7==null?null:100-r.d7) : '';
   $('#d3used').textContent = r.d7==null ? '--' : (100-r.d7)+'%';
   $('#d2used').textContent = r.h5==null ? '--' : (100-r.h5)+'%';
   const low = Math.min(r.h5??100, r.d7??100);
@@ -756,7 +765,7 @@ function renderDash(){
   const ranked=S.desktop.map(p=>({id:p.id, d7:remain(p.quota,p.id).d7})).filter(x=>x.d7!=null).sort((a,b)=>b.d7-a.d7);
   const pos=cur ? ranked.findIndex(x=>x.id===cur.id) : -1;
   $('#d3rank').textContent = pos<0 ? '--' : '第 '+(pos+1)+' / '+ranked.length;
-  const hist=(cur&&DUSAGE[cur.id]&&DUSAGE[cur.id].hist)||[];
+  const hist=((cur&&cur.quota&&cur.quota.samples)||[]).concat((cur&&DUSAGE[cur.id]&&DUSAGE[cur.id].hist)||[]).sort((a,b)=>a[0]-b[0]);
   drawSpark('#d2spark','#d2sparkTip', hist, 1, 5*3600e3, '近 5 小时已用走势');
   drawSpark('#d3spark','#d3sparkTip', hist, 2, 7*86400e3, '近 7 天已用走势');
   if (cur){

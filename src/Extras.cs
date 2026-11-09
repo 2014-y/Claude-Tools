@@ -192,6 +192,7 @@ namespace ClaudeSwitcher
         public long T;
         public long FiveReset, SevenReset; // 推算的重置时间（毫秒时间戳，0 表示无法推算）
         public List<int[]> Recent = new List<int[]>(); // 最近 7 天的 7天用量走势（按小时取样）
+        public List<long[]> Samples = new List<long[]>(); // 桌面 App 自己记录的官方用量：[时间ms, 5H已用%, 7天已用%]，最近 8 天
     }
 
     static class QuotaReader
@@ -249,6 +250,14 @@ namespace ClaudeSwitcher
                         while (anchor <= nowMs) anchor += week;
                         q.SevenReset = anchor; break;
                     }
+                }
+                long cut8 = last.t - 8L * 24 * 3600 * 1000; int pf = -2, ps = -2;
+                foreach (var s in samples.Where(s => s.org == last.org && s.t >= cut8))
+                {
+                    int f1 = s.u.ContainsKey("fh") && s.u["fh"] != null ? Convert.ToInt32(s.u["fh"]) : -1;
+                    int s1 = s.u.ContainsKey("sd") && s.u["sd"] != null ? Convert.ToInt32(s.u["sd"]) : -1;
+                    if (f1 == pf && s1 == ps) continue;   // 数值没变的不重复记
+                    pf = f1; ps = s1; q.Samples.Add(new long[] { s.t, f1, s1 });
                 }
                 long from = last.t - 7L * 24 * 3600 * 1000;
                 long bucket = -1;

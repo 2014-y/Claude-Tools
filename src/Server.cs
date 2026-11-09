@@ -545,7 +545,8 @@ namespace ClaudeSwitcher
             if (q == null) return null;
             return new Dictionary<string, object> {
                 { "fiveHour", q.FiveHour }, { "sevenDay", q.SevenDay }, { "t", q.T }, { "fiveReset", q.FiveReset }, { "sevenReset", q.SevenReset },
-                { "recent", q.Recent.Select(r => new[] { r[0], r[1], r[2] }).ToList() }
+                { "recent", q.Recent.Select(r => new[] { r[0], r[1], r[2] }).ToList() },
+                { "samples", q.Samples }
             };
         }
 
