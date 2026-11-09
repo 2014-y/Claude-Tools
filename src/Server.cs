@@ -524,6 +524,15 @@ namespace ClaudeSwitcher
                     }
                 case "logs": return OpLog.Read(500);
                 case "logs/clear": OpLog.Clear(); return null;
+                case "logs/add":
+                    {
+                        // 界面上的刷新 / 查询额度操作写入操作日志（只接受这几类，防止乱写）
+                        var act = S(a, "action");
+                        if (act != "刷新全部数据" && act != "查询官方额度" && act != "自动查询官方额度") throw new Exception("不支持的日志类型");
+                        long ms; long.TryParse(S(a, "ms"), out ms);
+                        OpLog.Add(act, S(a, "target"), S(a, "ok") != "0", S(a, "detail"), ms);
+                        return null;
+                    }
                 case "settings": return Settings.All();
                 case "settings/set": Settings.Set(S(a, "key"), a.ContainsKey("value") ? a["value"] : null); return Settings.All();
                 case "quit": new Thread(() => { Thread.Sleep(300); Quit(); }).Start(); return null;

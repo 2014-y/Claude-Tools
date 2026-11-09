@@ -171,8 +171,8 @@ svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:2;stroke-l
 .op[disabled]{opacity:.3;pointer-events:none}
 .empty{padding:60px 20px;text-align:center;color:var(--muted);height:100%;min-height:160px;box-sizing:border-box;display:flex;flex-direction:column;align-items:center;justify-content:center}
 .empty .bigt{font-size:16px;color:var(--text);font-weight:600;margin-bottom:6px}
-.seg{display:flex;gap:2px;background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:4px}
-.seg button{padding:6px 14px;border-radius:7px;color:var(--muted);font-weight:600;font-size:14px;display:flex;gap:7px;align-items:center}
+.seg{display:flex;align-items:stretch;gap:2px;background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:3px;height:40px}
+.seg button{padding:0 14px;border-radius:7px;color:var(--muted);font-weight:600;font-size:14px;display:flex;gap:7px;align-items:center}
 .seg button.on{background:var(--grad);color:#fff}
 .dirbox{flex:1;min-width:300px;display:flex;align-items:center;gap:8px;background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:0 12px;height:40px;color:var(--faint)}
 .dirbox input{border:0;outline:0;background:none;flex:1;height:100%;color:var(--text)}
@@ -467,7 +467,7 @@ html.lt900{ .grid2{grid-template-columns:1fr} .app{padding:14px 16px} .kpis{disp
       <label class="search"><svg><use href="#i-search"/></svg><input id="sq" placeholder="搜索标题 / 目录 / 模型…"></label>
       <select class="sel" id="schips" title="按账号筛选"></select>
       <div class="spacer"></div>
-      <label class="pill" style="cursor:pointer"><input type="checkbox" id="sArch" style="margin:0;accent-color:#ff5a1f"> 显示已归档</label>
+      <label class="pill" style="cursor:pointer;height:40px;box-sizing:border-box;border-radius:10px"><input type="checkbox" id="sArch" style="margin:0;accent-color:#ff5a1f"> 显示已归档</label>
       <button class="btn" id="sRefresh">${'refresh'}刷新</button>
       <button class="btn main" id="sMerge">${'swap'}合并所有账号的会话记录</button>
     </div>
@@ -625,6 +625,7 @@ function liveCooldown(){ const b=document.querySelector('#dLive'); if(!b) return
 setInterval(liveCooldown, 1000);
 // 锁一解开就自动再查一次（被官方限流时锁会按官方要求延长，不会狂查）
 setInterval(()=>{ if (!offline && S && S.desktop && lockLeft()===0 && !liveBusy && S.desktop.some(p=>p.live)) refreshLive(true); }, 5000);
+function addLog(action, target, ok, detail, ms){ api('logs/add',{action, target, ok:ok?'1':'0', detail:detail||'', ms:String(Math.round(ms||0))}).then(()=>{ if (page==='logs'||page==='dash') loadLogs(); }).catch(()=>{}); }
 async function refreshLive(silent){
   if (liveBusy || lockLeft()>0) return; liveBusy=true; liveCooldown();
   const done=busy('正在查询官方实时余量…');
@@ -632,11 +633,13 @@ async function refreshLive(silent){
     const list=(S.desktop||[]).filter(p=>p.live);
     if (!list.length && !silent) toast('没有已登录的桌面账号',false);
     const errs=[];
-    await Promise.all(list.map(p=>api('desktop/usage',{id:p.id}).then(r=>{
+    await Promise.all(list.map(p=>{ const t0=Date.now(); return api('desktop/usage',{id:p.id}).then(r=>{
       if (r.session||r.week) DUSAGE[p.id]=r;
       if (r.nextAt) lockUntil=Math.max(lockUntil, r.nextAt);
       if (r.error) errs.push('「'+M(p.remark)+'」'+r.error);
-    }).catch(e=>errs.push('「'+M(p.remark)+'」'+e.message))));
+      const d=r.error ? r.error : '5 小时已用 '+(r.session?r.session.used+'%':'--')+' · 每周已用 '+(r.week?r.week.used+'%':'--');
+      if (!silent || r.error) addLog(silent?'自动查询官方额度':'查询官方额度', p.remark, !r.error, d, Date.now()-t0);
+    }).catch(e=>{ errs.push('「'+M(p.remark)+'」'+e.message); addLog(silent?'自动查询官方额度':'查询官方额度', p.remark, false, e.message, Date.now()-t0); }); }));
     lockUntil=Math.max(lockUntil, Date.now()+180e3);
     rebuildLive(); liveAt=Date.now(); renderAll();
     if (!silent) { if (errs.length) toast(errs.join('\n')+(Object.keys(DUSAGE).length?'\n（先显示最近一次的数据）':''),false); else if (list.length) toast('已更新官方余量'); }
@@ -1305,7 +1308,7 @@ function updateRefreshTip(){
   b.title = (AUTO_ALL>0 ? '自动刷新：每 '+(AUTO_ALL>=60?(AUTO_ALL/60)+' 分钟':AUTO_ALL+' 秒') : '自动刷新：关闭') + (lastAllAt?' · 上次刷新 '+lastAllAt:'') + '\n点击立即刷新（F5）';
 }
 async function refreshAll(silent){
-  if (refreshing) return; refreshing=true;
+  if (refreshing) return; refreshing=true; const allT0=Date.now();
   const b=$('#refreshAll'); if (!silent) b.classList.add('spinning');
   try{
     // 全部刷新也包含官方实时余量（30 秒内查过的不重复查）
@@ -1315,6 +1318,7 @@ async function refreshAll(silent){
     if (silent) return;
     // 等用量统计重新读完
     for (let i=0; i<60 && STATS && STATS.scanning; i++) { await new Promise(r=>setTimeout(r,500)); await loadStats(); }
+    if (!offline) addLog('刷新全部数据', '账号、官方额度、用量统计、会话记录、日志', true, lockLeft()>0 ? '官方额度 '+lockLeft()+' 秒后自动再查' : '', Date.now()-allT0);
     if (!offline) { const l=lockLeft(), any=Object.values(DUSAGE)[0]; toast('已刷新全部数据'+(l>0 ? '\n官方额度上次更新于 '+(any&&any.at?any.at:'-')+'，'+l+' 秒后自动再查（官方限制查询频率）' : '\n官方额度已更新')); }
   } finally { b.classList.remove('spinning'); refreshing=false; }
 }
