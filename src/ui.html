@@ -1,0 +1,1198 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Claude Tools</title>
+<link rel="icon" href="/favicon.ico">
+<script>
+// 独立的更新检查：即使主脚本出错，程序更新后窗口也会自动刷新恢复
+(function(){
+  var T=new URLSearchParams(location.search).get('t'), build=null;
+  setInterval(function(){
+    fetch('/api/ping',{method:'POST',headers:{'X-Token':T,'Content-Type':'application/json'},body:'{}'})
+      .then(function(r){ return r.json(); })
+      .then(function(j){ var b=j && j.data; if (build && b && b!==build) location.reload(); if (b) build=b; })
+      .catch(function(){});
+  }, 8000);
+})();
+</script>
+<style>
+/* 配色与应用图标一致：橙红主色 + 奶黄 / 金黄点缀 */
+:root{
+  --bg:#0d0b0a; --panel:#161210; --panel2:#1d1815; --rowHover:#211b17;
+  --border:#2e2621; --text:#f4ece6; --muted:#a39488; --faint:#6e625a;
+  --primary:#ff5a1f; --primary2:#e8470f; --grad:linear-gradient(135deg,#ff7a33,#f23d0f);
+  --gold:#ffc93c; --cream:#ffe7a8;
+  --pBg:rgba(255,90,31,.14); --gBg:rgba(255,201,60,.13); --cBg:rgba(255,231,168,.10);
+  --green:#3ccf7a; --greenBg:rgba(60,207,122,.13); --red:#ff4d4f; --redBg:rgba(255,77,79,.13);
+  --yellow:#ffc93c; --yellowBg:rgba(255,201,60,.13);
+  --shadow:0 10px 40px rgba(0,0,0,.5); --radius:16px;
+}
+[data-theme=light]{
+  --bg:#fbf6f2; --panel:#ffffff; --panel2:#fff7f1; --rowHover:#fff3ea;
+  --border:#f0e2d7; --text:#2a1a12; --muted:#7c6a5e; --faint:#b3a294; --shadow:0 10px 30px rgba(120,60,20,.12);
+  --gold:#d99a00; --cream:#b7791f; --gBg:rgba(255,201,60,.2); --cBg:rgba(255,190,90,.14);
+}
+*{box-sizing:border-box;-webkit-user-select:none;user-select:none}
+input,textarea{-webkit-user-select:text;user-select:text}
+img{-webkit-user-drag:none}
+html,body{margin:0;height:100%}
+body{background:var(--bg);color:var(--text);font:15px/1.5 "Segoe UI","Microsoft YaHei UI","PingFang SC",sans-serif;-webkit-font-smoothing:antialiased;overflow:hidden}
+body::before{content:"";position:fixed;inset:-30% -10% auto auto;width:60vw;height:60vw;background:radial-gradient(circle,rgba(255,90,31,.10),transparent 60%);pointer-events:none}
+button{font:inherit;color:inherit;cursor:pointer;border:0;background:none}
+input{font:inherit;color:inherit}
+svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex:none}
+.app{position:relative;height:100%;display:flex;flex-direction:column;padding:20px 32px 14px;gap:18px;max-width:1880px;margin:0 auto}
+.num{font-family:"Cascadia Mono","JetBrains Mono",Consolas,monospace;letter-spacing:-.5px}
+
+.top{display:flex;align-items:center;gap:20px}
+.brand{display:flex;align-items:center;gap:10px;font-weight:800;font-size:19px;white-space:nowrap}
+.brand img{width:36px;height:36px;border-radius:10px;box-shadow:0 4px 16px rgba(255,90,31,.45)}
+.brand span{background:linear-gradient(90deg,var(--cream),var(--primary));-webkit-background-clip:text;background-clip:text;color:transparent}
+.nav{display:flex;gap:2px;background:var(--panel);border:1px solid var(--border);padding:5px;border-radius:999px;overflow:hidden;flex:none}
+.nav::-webkit-scrollbar{display:none}
+.nav button{padding:7px 18px;border-radius:999px;color:var(--muted);font-weight:600;white-space:nowrap;transition:.15s}
+.nav button:hover{color:var(--text)}
+.nav button.on{background:var(--grad);color:#fff;box-shadow:0 4px 14px rgba(255,90,31,.35)}
+.spacer{flex:1}
+.iconbtn{width:38px;height:38px;border-radius:50%;display:grid;place-items:center;background:var(--panel);border:1px solid var(--border);color:var(--muted);transition:.15s;flex:none}
+.iconbtn:hover{color:var(--text);border-color:var(--faint)}
+.iconbtn.spinning svg{animation:sp .8s linear infinite}
+.iconbtn.auto{position:relative}
+.iconbtn.auto::after{content:"";position:absolute;top:6px;right:6px;width:7px;height:7px;border-radius:50%;background:var(--green);box-shadow:0 0 0 2px var(--panel)}
+.iconbtn.on{color:var(--primary);border-color:rgba(255,90,31,.45);background:var(--pBg)}
+.pill{display:flex;align-items:center;gap:8px;padding:7px 14px;border-radius:999px;background:var(--panel);border:1px solid var(--border);color:var(--muted);font-size:13px;white-space:nowrap}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--faint);flex:none}
+.dot.on{background:var(--green);box-shadow:0 0 0 3px var(--greenBg)}
+
+.page{flex:1;min-height:0;display:flex;flex-direction:column;gap:16px;overflow:auto;padding-right:4px}
+.page.hide{display:none}
+.bar{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.search{display:flex;align-items:center;gap:8px;background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:0 12px;height:40px;width:260px;color:var(--faint)}
+.search input{border:0;outline:0;background:none;flex:1;height:100%}
+.chips{display:flex;gap:2px;background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:4px;flex-wrap:wrap}
+.chip{padding:5px 12px;border-radius:7px;color:var(--muted);font-size:12.5px;font-weight:600;display:flex;align-items:center;gap:7px;white-space:nowrap}
+.chip b{font-size:11px;background:var(--panel2);border:1px solid var(--border);padding:0 6px;border-radius:5px;color:var(--muted)}
+.chip.on{color:var(--primary);background:var(--pBg)}
+.chip.on b{background:var(--primary);border-color:var(--primary);color:#fff}
+.btn{height:40px;padding:0 16px;border-radius:10px;display:inline-flex;align-items:center;justify-content:center;gap:8px;font-weight:600;white-space:nowrap;transition:.15s;border:1px solid var(--border);background:var(--panel)}
+.btn:hover{border-color:var(--faint)}
+.btn.main{background:var(--grad);border-color:transparent;color:#fff;box-shadow:0 4px 14px rgba(255,90,31,.3)}
+.btn.main:hover{filter:brightness(1.08)}
+.btn.gold{background:linear-gradient(135deg,#ffd76a,#ffb21f);border-color:transparent;color:#3a1d05}
+.btn.red{background:var(--red);border-color:var(--red);color:#fff}
+.btn.sm{height:32px;padding:0 12px;font-size:13px;border-radius:8px}
+.btn[disabled]{opacity:.45;pointer-events:none}
+.notice{display:flex;align-items:center;gap:10px;padding:10px 14px;border-radius:10px;background:var(--pBg);color:#ffb48f;font-size:13px;border:1px solid rgba(255,90,31,.28)}
+[data-theme=light] .notice{color:#c2410c}
+
+.hello{display:flex;align-items:flex-end;gap:20px;flex-wrap:wrap}
+.hello h1{margin:0;font-size:27px;font-weight:800}
+.kpis{display:flex;margin-left:auto}
+.kpi{padding:0 22px;text-align:right;border-left:1px solid var(--border)}
+.kpi:first-child{border-left:0}
+.kpi b{display:block;font-size:28px;line-height:1.1}
+.kpi span{font-size:13.5px;color:var(--muted)}
+.grid4{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px}
+.grid2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+.box{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);padding:20px;display:flex;flex-direction:column;gap:12px;min-width:0}
+.box-h{display:flex;align-items:center;gap:10px;font-weight:700;font-size:15px}
+.box-h .ic{width:34px;height:34px;border-radius:10px;display:grid;place-items:center;background:var(--pBg);color:var(--primary)}
+.box-h .ic.g{background:var(--gBg);color:var(--gold)}
+.box-h .tag{margin-left:auto}
+.big{font-size:36px;font-weight:800;line-height:1.1}
+.big small{font-size:15px;color:var(--muted);font-weight:500;margin-left:4px}
+.sub{color:var(--muted);font-size:14px}
+.track{height:10px;border-radius:99px;background:var(--panel2);overflow:hidden;border:1px solid var(--border)}
+.track i{display:block;height:100%;border-radius:99px;background:linear-gradient(90deg,#3ccf7a,#9be15d);transition:width .4s}
+.track i.warn{background:linear-gradient(90deg,#ffb21f,#ffd76a)}
+.track i.bad{background:linear-gradient(90deg,#ff4d4f,#ff7a33)}
+.minis{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.mini{background:var(--panel2);border:1px solid var(--border);border-radius:12px;padding:12px 14px;display:flex;flex-direction:column;gap:7px}
+.mini .row{display:flex;justify-content:space-between;align-items:center;font-size:14px;color:var(--muted)}
+.mini .row b{color:var(--text);font-size:15px}
+.mini .k{font-size:13px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mini .v{font-size:20px;font-weight:800;color:var(--text);white-space:nowrap;line-height:1.2}
+.box-f{margin-top:auto;padding-top:12px;border-top:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;color:var(--muted);font-size:14px}
+.rec{display:flex;align-items:center;gap:14px;padding:12px 14px;border-radius:12px;background:var(--panel2);border:1px solid var(--border)}
+.rec.best{background:linear-gradient(90deg,rgba(255,201,60,.12),transparent);border-color:rgba(255,201,60,.35)}
+.rec .t{flex:1;min-width:0}
+.rec .t div:first-child{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pct{font-weight:800;font-size:13px;padding:2px 10px;border-radius:99px;background:var(--greenBg);color:var(--green)}
+.pct.warn{background:var(--yellowBg);color:var(--yellow)} .pct.bad{background:var(--redBg);color:var(--red)} .pct.na{background:var(--panel);color:var(--faint);border:1px solid var(--border)}
+
+.card{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);display:flex;flex-direction:column;overflow:hidden;min-height:0}
+.card.fill{flex:1}
+.thead,.tr{display:grid;align-items:center;gap:16px;padding:0 22px}
+.thead{height:46px;color:var(--muted);font-size:13px;font-weight:600;border-bottom:1px solid var(--border);background:var(--panel2);flex:none}
+.tbody{flex:1;overflow:auto}
+.tr{min-height:74px;border-bottom:1px solid var(--border);transition:background .12s;position:relative}
+.tr:hover{background:var(--rowHover)}
+.tr.cur{background:linear-gradient(90deg,rgba(255,90,31,.10),transparent 45%)}
+.tr.cur::before{content:"";position:absolute;left:0;top:14px;bottom:14px;width:3px;border-radius:0 3px 3px 0;background:var(--grad)}
+.tr.slim{min-height:52px}
+.g-desk{grid-template-columns:minmax(230px,1.2fr) minmax(280px,1.3fr) 90px 130px 300px}
+.g-cli{grid-template-columns:minmax(240px,1.5fr) 150px 380px}
+.g-sess{grid-template-columns:minmax(220px,1.6fr) 150px 150px minmax(160px,1fr) 130px 44px}
+.g-log{grid-template-columns:170px 140px minmax(200px,1fr) 90px 80px}
+.g-rank{grid-template-columns:minmax(160px,1fr) 2fr 130px}
+.who{display:flex;align-items:center;gap:14px;min-width:0}
+.avatar{width:40px;height:40px;border-radius:12px;display:grid;place-items:center;font-weight:800;color:#fff;font-size:16px;flex:none;text-shadow:0 1px 2px rgba(0,0,0,.25)}
+.who .name{font-weight:600;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.who .tags{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-top:3px}
+.tag{font-size:12.5px;font-weight:700;padding:1px 8px;border-radius:6px;display:inline-flex;align-items:center;gap:4px;white-space:nowrap}
+.tag.green{background:var(--greenBg);color:var(--green)} .tag.main{background:var(--pBg);color:var(--primary)}
+.tag.gold{background:var(--gBg);color:var(--gold)} .tag.cream{background:var(--cBg);color:var(--cream)}
+.tag.gray{background:var(--panel2);color:var(--muted);border:1px solid var(--border)}
+.tag.red{background:var(--redBg);color:var(--red)}
+.tag.st{min-width:58px;justify-content:center} .tag.yellow{background:var(--yellowBg);color:var(--yellow)}
+.qbars{display:flex;flex-direction:column;gap:10px;padding:10px 0}
+.curRow{display:flex;align-items:center;gap:24px;padding:6px 0}
+.qbar{display:grid;grid-template-columns:72px 1fr 52px;align-items:center;gap:10px;font-size:14px;color:var(--muted)}
+.qbar b{text-align:right;color:var(--text);font-size:14px}
+.qbar .track{height:10px}
+.ellip{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.time{font-size:13px}.time small{display:block;color:var(--faint);font-size:12px}
+.ops{display:flex;gap:6px;justify-content:flex-end;align-items:center}
+.op{width:34px;height:34px;border-radius:9px;display:grid;place-items:center;color:var(--muted);transition:.15s}
+.op:hover{background:var(--pBg);color:var(--primary)}
+.op.danger:hover{color:var(--red);background:var(--redBg)}
+.op[disabled]{opacity:.3;pointer-events:none}
+.empty{padding:60px 20px;text-align:center;color:var(--muted)}
+.empty .bigt{font-size:16px;color:var(--text);font-weight:600;margin-bottom:6px}
+.seg{display:flex;gap:2px;background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:4px}
+.seg button{padding:6px 14px;border-radius:7px;color:var(--muted);font-weight:600;font-size:13px;display:flex;gap:7px;align-items:center}
+.seg button.on{background:var(--grad);color:#fff}
+.dirbox{flex:1;min-width:300px;display:flex;align-items:center;gap:8px;background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:0 12px;height:40px;color:var(--faint)}
+.dirbox input{border:0;outline:0;background:none;flex:1;height:100%;color:var(--text)}
+
+.chart{display:flex;align-items:flex-end;gap:5px;height:190px;padding-top:10px}
+.col{flex:1;display:flex;flex-direction:column-reverse;border-radius:5px 5px 2px 2px;overflow:hidden;min-height:2px;background:var(--panel2)}
+.col i{display:block}
+.col:hover{outline:2px solid var(--gold);outline-offset:1px}
+.xlab{display:flex;gap:5px;font-size:10.5px;color:var(--faint)}
+.xlab span{flex:1;text-align:center;overflow:hidden}
+.legend{display:flex;gap:16px;font-size:12px;color:var(--muted);flex-wrap:wrap;font-weight:500}
+.legend span{display:flex;align-items:center;gap:6px}
+.legend i{width:10px;height:10px;border-radius:3px;display:inline-block}
+.hbar{height:10px;border-radius:99px;background:var(--panel2);overflow:hidden;display:flex}
+.hbar i{display:block;height:100%}
+.tip{position:fixed;pointer-events:none;background:var(--panel);border:1px solid var(--border);box-shadow:var(--shadow);border-radius:10px;padding:10px 12px;font-size:12px;z-index:40;display:none;min-width:170px}
+.tip div{display:flex;justify-content:space-between;gap:14px}
+.spark{width:100%;height:46px}
+#p-dash .grow{flex:1;min-height:250px}
+#p-dash .grow .box{min-height:0}
+#dChart{flex:1;height:auto;min-height:110px}
+.mlog{display:flex;align-items:center;gap:12px;padding:9px 0;border-bottom:1px solid var(--border);font-size:13px}
+.mlog:last-child{border-bottom:0}
+.mlog .ellip{flex:1}
+.sel{height:40px;border-radius:10px;border:1px solid var(--border);background:var(--panel) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23a39488' stroke-width='2.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E") no-repeat right 14px center;color:var(--text);padding:0 38px 0 14px;font:inherit;font-weight:600;outline:0;cursor:pointer;max-width:240px;-webkit-appearance:none;appearance:none}
+.sel option{background:var(--panel);color:var(--text)}
+.sel:focus{border-color:var(--primary)}
+.kc{padding:16px 18px;gap:8px;min-height:118px;justify-content:center;align-items:center;text-align:center}
+.kc .k{justify-content:center}
+.kc .k{color:#d9cdc4;font-size:16px;font-weight:700;display:flex;align-items:center;gap:6px}
+[data-theme=light] .kc .k{color:var(--muted)}
+.kc .v{font-size:30px;font-weight:800;line-height:1.15}
+.kc.s .v{font-size:30px}
+.yaxis{width:52px;display:flex;flex-direction:column;justify-content:space-between;align-items:flex-end;font-size:11px;color:var(--faint);height:190px;padding-top:10px}
+.tabs2{display:flex;align-items:center;gap:4px;padding:8px 14px 0;border-bottom:1px solid var(--border);background:var(--panel2)}
+.tabs2 button{padding:9px 14px;color:var(--muted);font-weight:600;border-bottom:2px solid transparent;margin-bottom:-1px}
+.tabs2 button.on{color:var(--text);border-bottom-color:var(--primary)}
+.ccg{border:1px solid var(--border);border-radius:12px;padding:12px 16px;margin-top:12px;background:var(--panel2)}
+.ccg-h{display:flex;justify-content:space-between;align-items:center;padding-bottom:8px;border-bottom:1px solid var(--border);margin-bottom:4px;font-size:15px}
+.ccg-h label,.cci{display:flex;align-items:center;gap:10px;cursor:pointer}
+.cci{padding:8px 0 8px 26px;font-size:14px}
+.cci:hover{color:var(--primary)}
+.cci .ellip{flex:1}
+.cci b{min-width:100px;text-align:right}
+.ccg input{accent-color:#ff5a1f;width:16px;height:16px}
+.btn.spinning svg{animation:sp .8s linear infinite}
+.tbl{width:100%;border-collapse:collapse;font-size:14px}
+.tbl th{position:sticky;top:0;background:var(--panel);color:var(--muted);font-weight:600;text-align:left;padding:10px 14px;border-bottom:1px solid var(--border);white-space:nowrap}
+.tbl td{padding:10px 14px;border-bottom:1px solid var(--border);white-space:nowrap}
+.tbl tr:hover td{background:var(--rowHover)}
+.tbl .r{text-align:right}
+.tbl input{width:96px;height:32px;border-radius:8px;border:1px solid var(--border);background:var(--panel2);padding:0 8px;outline:0;text-align:right}
+.tbl input.k{width:200px;text-align:left}
+.tbl input:focus{border-color:var(--primary)}
+.tblwrap{overflow:auto;flex:1}
+#tTable{flex:1;display:flex;flex-direction:column;min-height:0}
+.pager{margin-top:auto}
+.pager{display:flex;align-items:center;gap:10px;padding:12px 16px;border-top:1px solid var(--border);flex-wrap:wrap}
+.sel.sm{height:32px;font-size:13px;padding:0 32px 0 10px;background-position:right 10px center}
+.pg{min-width:34px;height:32px;padding:0 8px;border-radius:8px;border:1px solid var(--border);background:var(--panel);color:var(--muted);font-weight:700}
+.pg:hover{color:var(--text);border-color:var(--faint)}
+.pg.on{background:var(--grad);border-color:transparent;color:#fff}
+.pg[disabled]{opacity:.35;pointer-events:none}
+
+.setting{display:flex;align-items:center;gap:16px;padding:16px 0;border-bottom:1px solid var(--border)}
+.setting:last-child{border-bottom:0}
+.setting .t{flex:1;min-width:0}
+.setting .t b{display:block;font-weight:600}
+.setting .t span{color:var(--muted);font-size:12.5px;word-break:break-all}
+.switch{width:44px;height:24px;border-radius:99px;background:var(--border);position:relative;transition:.2s;flex:none}
+.switch::after{content:"";position:absolute;width:18px;height:18px;border-radius:50%;background:#fff;top:3px;left:3px;transition:.2s;box-shadow:0 1px 3px rgba(0,0,0,.3)}
+.switch.on{background:var(--grad)} .switch.on::after{left:23px}
+.input{height:38px;border-radius:10px;border:1px solid var(--border);background:var(--panel2);padding:0 12px;outline:0;width:240px}
+.input:focus{border-color:var(--primary)}
+.foot{display:flex;justify-content:space-between;color:var(--faint);font-size:13px;padding:0 4px;flex:none}
+
+.mask{position:fixed;inset:0;background:rgba(8,5,3,.62);backdrop-filter:blur(4px);display:none;align-items:center;justify-content:center;z-index:20}
+.mask.show{display:flex}
+.modal{width:450px;max-width:calc(100vw - 32px);background:var(--panel);border:1px solid var(--border);border-radius:16px;box-shadow:var(--shadow);padding:24px;animation:pop .16s ease-out}
+.modal h3{margin:0 0 8px;font-size:17px}
+.modal p{margin:0 0 18px;color:var(--muted);white-space:pre-line}
+.modal input{width:100%;height:42px;border-radius:10px;border:1px solid var(--border);background:var(--panel2);padding:0 12px;outline:0;margin-bottom:18px}
+.modal input:focus{border-color:var(--primary)}
+.modal .acts{display:flex;justify-content:flex-end;gap:10px}
+@keyframes pop{from{transform:scale(.96);opacity:0}}
+.loading{flex-direction:column;gap:16px;color:var(--text);font-weight:600}
+.spin{width:42px;height:42px;border-radius:50%;border:3px solid var(--border);border-top-color:var(--primary);animation:sp .8s linear infinite}
+@keyframes sp{to{transform:rotate(360deg)}}
+.toasts{position:fixed;top:20px;right:24px;display:flex;flex-direction:column;gap:10px;z-index:30}
+.toast{display:flex;gap:10px;align-items:center;background:var(--panel);border:1px solid var(--border);box-shadow:var(--shadow);border-radius:12px;padding:12px 16px;min-width:260px;max-width:440px;animation:pop .16s ease-out;white-space:pre-line}
+.toast.ok svg{color:var(--green)} .toast.err svg{color:var(--red)}
+.hide{display:none!important}
+.offline{position:fixed;top:14px;left:50%;transform:translateX(-50%);z-index:50;display:none;align-items:center;gap:10px;padding:10px 18px;border-radius:999px;background:var(--panel);border:1px solid rgba(255,77,79,.5);box-shadow:var(--shadow);color:#ff9a9a;font-size:13px;font-weight:600}
+.offline.show{display:flex}
+::-webkit-scrollbar{width:10px;height:10px}::-webkit-scrollbar-thumb{background:var(--border);border-radius:10px;border:3px solid var(--bg)}
+html.lt1250{
+  .grid4{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .g-desk{grid-template-columns:minmax(200px,1fr) minmax(240px,1.2fr) 130px 270px}
+  .g-desk>:nth-child(3){display:none}
+  .g-sess{grid-template-columns:minmax(200px,1fr) 130px 120px 110px 44px}
+  .g-sess>:nth-child(4){display:none}
+}
+html.lt1240{
+  .nav button{padding:7px 12px}
+  .top{gap:12px}
+}
+html.lt1100{
+  .pill span:last-child{display:none}
+  .pill{padding:7px 10px}
+  .brand{font-size:17px}
+}
+html.lt1000{
+  .top{flex-wrap:wrap}
+  .nav{order:3;width:100%;justify-content:space-between;overflow:visible}
+  .nav button{flex:1;padding:7px 6px}
+}
+html.lt900{ .grid2{grid-template-columns:1fr} .app{padding:14px 16px} .kpis{display:none} }
+</style>
+</head>
+<body>
+<svg style="display:none">
+  <symbol id="i-swap" viewBox="0 0 24 24"><path d="M16 3l4 4-4 4"/><path d="M20 7H4"/><path d="M8 21l-4-4 4-4"/><path d="M4 17h16"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+  <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></symbol>
+  <symbol id="i-edit" viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></symbol>
+  <symbol id="i-trash" viewBox="0 0 24 24"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/></symbol>
+  <symbol id="i-folder" viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></symbol>
+  <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></symbol>
+  <symbol id="i-moon" viewBox="0 0 24 24"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></symbol>
+  <symbol id="i-play" viewBox="0 0 24 24"><path d="M6 4l14 8-14 8z"/></symbol>
+  <symbol id="i-history" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/><path d="M12 7v5l3 2"/></symbol>
+  <symbol id="i-forward" viewBox="0 0 24 24"><path d="M5 12h14"/><path d="M13 6l6 6-6 6"/></symbol>
+  <symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 8h.01M11 12h1v5h1"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M8 12l3 3 5-6"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M15 9l-6 6M9 9l6 6"/></symbol>
+  <symbol id="i-wrench" viewBox="0 0 24 24"><path d="M14.7 6.3a4 4 0 0 0 5 5L22 14l-8 8-2.3-2.3a4 4 0 0 0-5-5L4 12l8-8z"/></symbol>
+  <symbol id="i-launch" viewBox="0 0 24 24"><path d="M14 4h6v6"/><path d="M20 4l-9 9"/><path d="M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></symbol>
+  <symbol id="i-eye" viewBox="0 0 24 24"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></symbol>
+  <symbol id="i-eyeoff" viewBox="0 0 24 24"><path d="M9.9 5.2A10 10 0 0 1 12 5c6.5 0 10 7 10 7a17 17 0 0 1-3.2 4.2M6.6 6.6C3.9 8.4 2 12 2 12s3.5 7 10 7a9.7 9.7 0 0 0 5.4-1.6"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/><path d="M3 3l18 18"/></symbol>
+  <symbol id="i-users" viewBox="0 0 24 24"><circle cx="9" cy="8" r="4"/><path d="M2 21a7 7 0 0 1 14 0"/><path d="M16 4a4 4 0 0 1 0 8M22 21a7 7 0 0 0-4-6.3"/></symbol>
+  <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></symbol>
+  <symbol id="i-cal" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18"/></symbol>
+  <symbol id="i-zap" viewBox="0 0 24 24"><path d="M13 2L4 14h7l-1 8 9-12h-7z"/></symbol>
+  <symbol id="i-trend" viewBox="0 0 24 24"><path d="M3 17l6-6 4 4 8-8"/><path d="M15 7h6v6"/></symbol>
+  <symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"/><path d="M9 12l2 2 4-4"/></symbol>
+  <symbol id="i-term" viewBox="0 0 24 24"><path d="M4 17l6-5-6-5"/><path d="M12 19h8"/></symbol>
+  <symbol id="i-monitor" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/></symbol>
+  <symbol id="i-power" viewBox="0 0 24 24"><path d="M12 2v10"/><path d="M18.4 6.6a9 9 0 1 1-12.8 0"/></symbol>
+  <symbol id="i-crown" viewBox="0 0 24 24"><path d="M3 8l4 4 5-7 5 7 4-4-2 11H5z"/></symbol>
+</svg>
+
+<div class="app">
+  <div class="top">
+    <div class="brand"><img src="/logo.png" alt=""><span>Claude Tools</span></div>
+    <div class="nav" id="nav">
+      <button data-p="dash" class="on">仪表盘</button>
+      <button data-p="acc">账号管理</button>
+      <button data-p="sess">会话记录</button>
+      <button data-p="stats">用量统计</button>
+      <button data-p="logs">操作日志</button>
+      <button data-p="clean">缓存清理</button>
+      <button data-p="set">设置</button>
+    </div>
+    <div class="spacer"></div>
+    <div class="pill" id="runState"><span class="dot"></span><span>检测中…</span></div>
+    <button class="iconbtn" id="refreshAll" title="刷新全部数据（F5）"><svg><use href="#i-refresh"/></svg></button>
+    <button class="iconbtn" id="maskBtn"></button>
+    <button class="iconbtn" id="themeBtn" title="切换主题"></button>
+  </div>
+
+  <div class="page" id="p-dash">
+    <div class="hello">
+      <h1 id="hello">你好 👋</h1>
+      <div class="kpis">
+        <div class="kpi"><b class="num" id="k1">-</b><span>桌面账号</span></div>
+        <div class="kpi"><b class="num" id="k2" style="color:var(--gold)">-</b><span>终端账号</span></div>
+        <div class="kpi"><b class="num" id="k3" style="color:var(--primary)">-</b><span>今日切换</span></div>
+      </div>
+    </div>
+    <div class="grid4">
+      <div class="box">
+        <div class="box-h"><span class="ic">${'users'}</span>账号总览<span class="tag gold" id="d1tag"></span></div>
+        <div class="big num" id="d1big">-</div>
+        <div class="sub" id="d1sub"></div>
+        <div class="track"><i id="d1bar" style="width:0"></i></div>
+        <div class="box-f"><span id="d1foot"></span><button class="btn sm" data-goto="acc">查看所有账号 ${'forward'}</button></div>
+      </div>
+      <div class="box">
+        <div class="box-h"><span class="ic g">${'clock'}</span>5 小时余量<span class="tag" id="d2tag"></span></div>
+        <div class="big num" id="d2big">-</div>
+        <div class="sub">当前账号 · 5 小时滚动窗口剩余</div>
+        <div class="track"><i id="d2bar" style="width:0"></i></div>
+        <div class="minis">
+          <div class="mini"><span class="k">5 小时已使用</span><b class="num v" id="d2used">-</b></div>
+          <div class="mini"><span class="k">使用建议</span><b class="v" id="d2tip" style="font-size:16px">-</b></div>
+        </div>
+      </div>
+      <div class="box">
+        <div class="box-h"><span class="ic">${'cal'}</span>7 天余量<span class="tag" id="d3tag"></span></div>
+        <div class="big num" id="d3big">-</div>
+        <div class="sub">当前账号 · 7 天周配额剩余</div>
+        <div class="track"><i id="d3bar" style="width:0"></i></div>
+        <div class="minis">
+          <div class="mini"><span class="k">本周已使用</span><b class="num v" id="d3used">-</b></div>
+          <div class="mini"><span class="k">余量排名</span><b class="num v" id="d3rank">-</b></div>
+        </div>
+        <svg class="spark" id="d3spark" viewBox="0 0 300 46" preserveAspectRatio="none" style="flex:1;min-height:46px"></svg>
+      </div>
+      <div class="box">
+        <div class="box-h"><span class="ic g">${'zap'}</span>今日 Token<span class="tag cream" id="d4tag">统计中</span></div>
+        <div class="big num" id="d4big">-</div>
+        <div class="minis">
+          <div class="mini"><span class="k">估算费用</span><b class="num v" id="d4in">-</b></div>
+          <div class="mini"><span class="k">今日请求</span><b class="num v" id="d4out">-</b></div>
+        </div>
+        <div class="box-f"><span id="d4foot">本月 -</span><button class="btn sm" data-goto="stats">详细统计 ${'forward'}</button></div>
+      </div>
+    </div>
+    <div class="grid2">
+      <div class="box">
+        <div class="box-h"><span class="ic">${'check'}</span>当前桌面 App 账号<span class="tag" id="curState"></span></div>
+        <div id="curBox"></div>
+        <button class="btn" data-goto="acc" style="margin-top:auto">切换账号</button>
+      </div>
+      <div class="box">
+        <div class="box-h"><span class="ic g">${'crown'}</span>余量排行 · 最佳账号推荐</div>
+        <div id="rankBox" style="display:flex;flex-direction:column;gap:10px"></div>
+        <button class="btn main" id="bestBtn" style="margin-top:auto">${'zap'}一键切换到余量最多的账号</button>
+      </div>
+    </div>
+    <div class="grid2 grow">
+      <div class="box">
+        <div class="box-h"><span class="ic">${'trend'}</span><span id="dTrendTitle">用量趋势</span><span class="tag cream" id="dTrendSum"></span>
+          <button class="btn sm" data-goto="stats" style="margin-left:auto">用量统计 ${'forward'}</button></div>
+        <div class="chart" id="dChart"></div><div class="xlab" id="dX"></div>
+      </div>
+      <div class="box">
+        <div class="box-h"><span class="ic g">${'history'}</span>最近操作<button class="btn sm" data-goto="logs" style="margin-left:auto">全部日志 ${'forward'}</button></div>
+        <div id="dLogs" style="flex:1;overflow:auto;min-height:0"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="page hide" id="p-acc">
+    <div class="bar">
+      <div class="seg" id="accSeg"><button data-s="desk" class="on">${'monitor'}桌面 App</button><button data-s="cli">${'term'}终端 Claude Code</button></div>
+      <label class="search"><svg><use href="#i-search"/></svg><input id="aq" placeholder="搜索备注 / 邮箱…"></label>
+      <div class="spacer"></div>
+      <span id="accBtns" style="display:flex;gap:10px"></span>
+    </div>
+    <div id="accDesk" style="display:contents">
+      <div class="card fill">
+        <div class="thead g-desk"><div>账号</div><div>模型配额余量</div><div>会话</div><div>上次使用</div><div style="text-align:right">操作</div></div>
+        <div class="tbody" id="dlist"></div>
+      </div>
+    </div>
+    <div id="accCli" class="hide" style="display:contents">
+      <div class="bar">
+        <label class="dirbox"><svg><use href="#i-folder"/></svg><input id="cdir" list="recent" placeholder="项目文件夹，例如 D:\Projects\my-app"></label>
+        <datalist id="recent"></datalist>
+        <button class="btn" id="cPick">${'folder'}浏览</button>
+      </div>
+      <div class="bar" id="cdirChips" style="gap:8px"></div>
+      <div id="cliBanner"></div>
+      <div class="notice">${'info'}这里切换的是终端里的 Claude Code（claude 命令）账号，和桌面 App 互不影响；不同账号可同时开多个终端，所有账号共用同一份历史对话。新账号第一次启动时在弹出的终端里登录一次即可。</div>
+      <div class="card fill">
+        <div class="thead g-cli"><div>账号</div><div>状态</div><div style="text-align:right">在上面的文件夹里启动</div></div>
+        <div class="tbody" id="clist"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="page hide" id="p-sess">
+    <div class="bar">
+      <label class="search"><svg><use href="#i-search"/></svg><input id="sq" placeholder="搜索标题 / 目录 / 模型…"></label>
+      <div class="chips" id="schips"></div>
+      <div class="spacer"></div>
+      <label class="pill" style="cursor:pointer"><input type="checkbox" id="sArch" style="margin:0;accent-color:#ff5a1f"> 显示已归档</label>
+      <button class="btn" id="sRefresh">${'refresh'}刷新</button>
+      <button class="btn main" id="sMerge">${'swap'}合并所有账号的会话记录</button>
+    </div>
+    <div class="card fill">
+      <div class="thead g-sess"><div>会话标题</div><div>账号</div><div>模型</div><div>项目目录</div><div>最后活动</div><div></div></div>
+      <div class="tbody" id="slist"></div><div id="slistPg"></div>
+    </div>
+  </div>
+
+  <div class="page hide" id="p-stats">
+    <div class="bar">
+      <div class="seg" id="tRange"><button data-v="today">今天</button><button data-v="7d" class="on">近 7 天</button><button data-v="30d">近 30 天</button><button data-v="all">全部</button></div>
+      <select class="sel" id="tModelSel"><option value="">全部模型</option></select>
+      <select class="sel" id="tAccSel"><option value="">全部账号</option></select>
+      <div class="spacer"></div>
+      <span class="sub" id="tSync">-</span>
+      <select class="sel" id="tAuto"><option value="0">自动刷新：关</option><option value="5">自动刷新 5 秒</option><option value="30">自动刷新 30 秒</option><option value="60">自动刷新 60 秒</option></select>
+      <button class="btn main" id="tRefresh">${'refresh'}立即同步</button>
+    </div>
+    <div class="grid4" id="tCards"></div>
+    <div class="grid4" id="tCards2"></div>
+    <div class="box">
+      <div class="box-h"><span class="ic">${'trend'}</span><span id="tTrendTitle">使用趋势</span>
+        <div class="legend" id="tLegend" style="margin-left:16px"></div>
+        <div class="seg" id="tMetric" style="margin-left:auto"><button data-v="tokens" class="on">Tokens</button><button data-v="requests">请求</button><button data-v="cost">成本</button></div></div>
+      <div style="display:flex;gap:10px"><div class="yaxis" id="tY"></div><div style="flex:1;min-width:0"><div class="chart" id="tChart"></div><div class="xlab" id="tX"></div></div></div>
+    </div>
+    <div class="card" style="flex:none;min-height:calc(100vh - 150px)">
+      <div class="tabs2" id="tTabs"><button data-v="logs" class="on">请求日志</button><button data-v="acc">账号</button><button data-v="model">模型</button><button data-v="proj">项目</button><button data-v="price">定价</button><span class="spacer"></span><span class="sub" id="tTabNote"></span></div>
+      <div id="tTable"></div>
+    </div>
+  </div>
+
+  <div class="page hide" id="p-logs">
+    <div class="bar">
+      <div class="chips" id="lchips"></div>
+      <div class="spacer"></div>
+      <button class="btn" id="lRefresh">${'refresh'}刷新</button>
+      <button class="btn" id="lClear">${'trash'}清空日志</button>
+    </div>
+    <div class="card fill">
+      <div class="thead g-log"><div>时间</div><div>操作</div><div>对象</div><div>结果</div><div style="text-align:right">耗时</div></div>
+      <div class="tbody" id="llist"></div><div id="llistPg"></div>
+    </div>
+  </div>
+
+  <div class="page hide" id="p-clean">
+    <div class="bar">
+      <span class="sub" id="ccInfo">只清理 Claude 桌面 App 和 Claude Code 的缓存，不会动登录信息、会话记录和设置</span>
+      <div class="spacer"></div>
+      <button class="btn" id="ccAll">全选</button>
+      <button class="btn" id="ccNone">全不选</button>
+      <button class="btn" id="ccScan">${'refresh'}重新扫描</button>
+      <button class="btn main" id="ccClean" disabled>${'trash'}清理选中项</button>
+    </div>
+    <div class="grid4" id="ccCards"></div>
+    <div class="card fill"><div class="tbody" id="ccList" style="padding:4px 16px 16px"></div></div>
+  </div>
+
+  <div class="page hide" id="p-set">
+    <div class="grid2">
+      <div class="box"><div class="box-h"><span class="ic">${'power'}</span>运行与显示</div><div id="setRun"></div></div>
+      <div class="box"><div class="box-h"><span class="ic g">${'shield'}</span>切换与账号</div><div id="setUse"></div></div>
+    </div>
+    <div class="box"><div class="box-h"><span class="ic">${'folder'}</span>存储与数据<span class="sub" id="scanInfo" style="margin-left:8px;font-weight:500"></span>
+      <span class="spacer"></span><button class="btn sm main" id="scanBtn">${'search'}扫描文件</button></div>
+      <div id="scanList"></div><div id="setData"></div></div>
+  </div>
+
+  <div class="foot"><span id="footL"></span><span>仅管理你自己的账号 · 数据全部保存在本机</span></div>
+</div>
+
+<div class="mask" id="modal"><div class="modal">
+  <h3 id="mTitle"></h3><p id="mText"></p>
+  <input id="mInput" class="hide">
+  <div class="acts"><button class="btn" id="mCancel">取消</button><button class="btn main" id="mOk">确定</button></div>
+</div></div>
+<div class="mask loading" id="loading"><div class="spin"></div><div id="loadingText">处理中…</div></div>
+<div class="toasts" id="toasts"></div>
+<div class="offline" id="offline"><span class="spin" style="width:16px;height:16px;border-width:2px"></span>连接已断开，正在重连…（如果一直这样，请从桌面或托盘重新打开 Claude Tools）</div>
+<div class="tip" id="tip"></div>
+
+<script>
+const TOKEN = new URLSearchParams(location.search).get('t');
+const $ = s => document.querySelector(s);
+const $$ = s => [...document.querySelectorAll(s)];
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const ico = n => `<svg><use href="#i-${n}"/></svg>`;
+document.body.innerHTML = document.body.innerHTML.replace(/\$\{'([a-z]+)'\}/g, (_, n) => ico(n));
+const CH = ['#ff5a1f','#ffc93c','#ffe7a8','#ff9a5c']; // 输入 输出 缓存读 缓存写
+
+let S = {desktop:[], cli:[], recent:[], settings:{}}, SESS = [], STATS = null, LOGS = [];
+let page = 'dash', accSub = 'desk', sFilter = 'all', lFilter = 'all';
+
+// ---------- 禁止复制 ----------
+const inField = e => e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA');
+['copy','cut','dragstart','selectstart'].forEach(ev => document.addEventListener(ev, e => { if (!inField(e)) e.preventDefault(); }));
+document.addEventListener('contextmenu', e => { if (!inField(e)) e.preventDefault(); });
+document.addEventListener('keydown', e => {
+  const k = (e.key||'').toLowerCase();
+  if (e.key === 'F12' || (e.ctrlKey && e.shiftKey && ['i','j','c'].includes(k)) || (e.ctrlKey && ['u','s','p'].includes(k))) { e.preventDefault(); return; }
+  if (e.ctrlKey && ['c','x','a'].includes(k) && !inField(e)) e.preventDefault();
+});
+
+// ---------- 工具 ----------
+let masked = true;
+function maskEmail(e){
+  const m = /^([^@]+)@(.+)$/.exec(e||''); if (!m) return e;
+  const [, u, dom] = m;
+  const user = u.length <= 2 ? u[0] + '*' : u.length <= 4 ? u[0] + '**' + u.slice(-1) : u.slice(0,2) + '****' + u.slice(-2);
+  const parts = dom.split('.'), host = parts.shift();
+  return user + '@' + host[0] + '***.' + parts.join('.');
+}
+const M = s => masked ? String(s ?? '').replace(/[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}/g, maskEmail) : String(s ?? '');
+const COLORS = [['#ff7a33','#f23d0f'],['#ffd76a','#ff8a1f'],['#ff9a5c','#e8470f'],['#ffb347','#ff5a1f'],['#ff6a3d','#d9360b'],['#ffc93c','#ff6a2b']];
+function avatar(seed, text){
+  let h=0; for (const c of String(seed)) h=(h*31+c.charCodeAt(0))>>>0;
+  const [a,b]=COLORS[h%COLORS.length];
+  return `<div class="avatar" style="background:linear-gradient(135deg,${a},${b})">${esc((M(text)||'?').trim().charAt(0).toUpperCase())}</div>`;
+}
+function fmt(n){ n=+n||0; if (n>=1e9) return (n/1e9).toFixed(2)+'B'; if (n>=1e6) return (n/1e6).toFixed(1)+'M'; if (n>=1e4) return (n/1e3).toFixed(1)+'K'; return n.toLocaleString(); }
+function ago(ms){ if(!ms) return '-'; const s=(Date.now()-ms)/1000; if(s<60) return '刚刚'; if(s<3600) return Math.floor(s/60)+' 分钟前'; if(s<86400) return Math.floor(s/3600)+' 小时前'; return Math.floor(s/86400)+' 天前'; }
+function dt(ms){ if(!ms) return ['-','']; const d=new Date(ms), p=n=>String(n).padStart(2,'0'); return [`${d.getFullYear()}/${p(d.getMonth()+1)}/${p(d.getDate())}`, `${p(d.getHours())}:${p(d.getMinutes())}`]; }
+const lvl = left => left == null ? 'na' : left < 20 ? 'bad' : left < 50 ? 'warn' : '';
+function remain(q){
+  if (!q) return {h5:null, d7:null, t:0};
+  const age = Date.now() - q.t;
+  const h5 = q.fiveHour < 0 ? null : age > 5*3600e3 ? 100 : 100 - q.fiveHour;
+  const d7 = q.sevenDay < 0 ? null : age > 7*86400e3 ? 100 : 100 - q.sevenDay;
+  return {h5, d7, t:q.t};
+}
+const pctTxt = v => v == null ? '--' : v + '%';
+const qbar = (label, left) => `<div class="qbar"><span>${label}</span><div class="track"><i class="${lvl(left)}" style="width:${left??0}%"></i></div><b class="num">${pctTxt(left)}</b></div>`;
+
+let offline=false;
+function setOffline(v){ if (offline===v) return; offline=v; $('#offline').classList.toggle('show', v); }
+async function api(name, body){
+  let r;
+  try { r = await fetch('/api/'+name, {method:'POST', headers:{'X-Token':TOKEN,'Content-Type':'application/json'}, body: JSON.stringify(body||{})}); }
+  catch(e){ setOffline(true); const x=new Error('Claude Tools 后台未运行'); x.offline=true; throw x; }
+  // 令牌不对（比如连到了别的实例）或返回的不是 JSON：按断线处理，静默重连，不弹英文错误
+  if (r.status===403) { setOffline(true); const x=new Error('Claude Tools 后台连接失效'); x.offline=true; throw x; }
+  let j; try { j = await r.json(); } catch(e) { setOffline(true); const x=new Error('Claude Tools 后台连接失效'); x.offline=true; throw x; }
+  setOffline(false);
+  if (!j.ok) throw new Error(j.error || '操作失败');
+  return j.data;
+}
+function toast(msg, ok=true){
+  if (!ok && offline) return;
+  const el=document.createElement('div'); el.className='toast '+(ok?'ok':'err');
+  el.innerHTML=ico(ok?'check':'x')+'<span>'+esc(msg)+'</span>';
+  $('#toasts').appendChild(el); setTimeout(()=>el.remove(), ok?3200:6500);
+}
+function loading(on, text){ $('#loadingText').textContent=text||'处理中…'; $('#loading').classList.toggle('show', !!on); }
+function dialog({title, text='', input=null, okText='确定', danger=false}){
+  return new Promise(res=>{
+    $('#mTitle').textContent=title; $('#mText').textContent=text;
+    const inp=$('#mInput'); inp.classList.toggle('hide', input===null); inp.value=input??'';
+    const ok=$('#mOk'); ok.textContent=okText; ok.className='btn '+(danger?'red':'main');
+    $('#modal').classList.add('show'); if (input!==null) setTimeout(()=>{inp.focus(); inp.select();},30);
+    const done=v=>{ $('#modal').classList.remove('show'); ok.onclick=$('#mCancel').onclick=inp.onkeydown=null; res(v); };
+    ok.onclick=()=>done(input===null?true:inp.value.trim());
+    $('#mCancel').onclick=()=>done(null);
+    inp.onkeydown=e=>{ if(e.key==='Enter') ok.click(); if(e.key==='Escape') done(null); };
+  });
+}
+async function run(name, body, busyText, okMsg){
+  loading(true, busyText);
+  try { const d = await api(name, body); if (d && d.desktop) S=d; renderAll(); if (okMsg) toast(typeof okMsg==='function'?okMsg(d):okMsg); return true; }
+  catch(e){ toast(e.message, false); return false; }
+  finally { loading(false); }
+}
+
+// ---------- 导航 ----------
+function go(p){
+  page=p; $$('#nav button').forEach(b=>b.classList.toggle('on', b.dataset.p===p));
+  $$('.page').forEach(x=>x.classList.toggle('hide', x.id!=='p-'+p));
+  try{localStorage.setItem('page',p)}catch(e){}
+  if (p==='sess') loadSessions(); if (p==='stats'||p==='dash') loadStats(); if (p==='logs'||p==='dash') loadLogs(); if (p==='set') { renderSettings(); renderScan(); doScan(); } if (p==='clean') { renderCC(); ccScan(); }
+}
+$('#nav').onclick=e=>{ const b=e.target.closest('button'); if(b) go(b.dataset.p); };
+document.addEventListener('click', e=>{ const g=e.target.closest('[data-goto]'); if(g) go(g.dataset.goto); });
+
+// ---------- 渲染 ----------
+function renderAll(){
+  $('#runState').innerHTML = `<span class="dot ${S.desktopRunning?'on':''}"></span><span>Claude 桌面 App ${S.desktopRunning?'运行中':'未运行'}</span>`;
+  renderDash(); renderDesk(); renderCli(); if (page==='set') renderSettings();
+  const cur=S.desktop.find(p=>p.active);
+  $('#footL').textContent = cur ? M(`当前桌面 App 账号：${cur.remark}${cur.email&&cur.email!==cur.remark?'（'+cur.email+'）':''}`) : '';
+}
+
+function renderDash(){
+  const cur=S.desktop.find(p=>p.active), n=S.desktop.length;
+  const name=(S.settings&&S.settings.userName)||(cur?cur.remark:'');
+  $('#hello').textContent = M('你好' + (name ? '，' + name : '')) + ' 👋';
+  $('#k1').textContent=n; $('#k2').textContent=S.cli.length; $('#k3').textContent=S.switchesToday??0;
+  const withQ=S.desktop.filter(p=>remain(p.quota).d7!=null), healthy=withQ.filter(p=>remain(p.quota).d7>=20).length;
+  $('#d1big').innerHTML = `${n}<small>个桌面账号</small>`;
+  $('#d1tag').textContent = `${healthy}/${withQ.length} 有余量`;
+  $('#d1sub').textContent = `✓ ${S.cli.length} 个终端账号 · 今日切换 ${S.switchesToday??0} 次`;
+  $('#d1bar').style.width = (withQ.length? healthy/withQ.length*100 : 0)+'%';
+  $('#d1foot').textContent = S.desktopRunning ? '桌面 App 运行中' : '桌面 App 未运行';
+  const r=remain(cur&&cur.quota);
+  const setQ=(big,bar,tag,foot,v)=>{
+    $(big).innerHTML = v==null ? '--' : `${v}<small>%</small>`;
+    if (bar) { $(bar).style.width=(v??0)+'%'; $(bar).className=lvl(v); }
+    $(tag).className='tag '+(v==null?'gray':v<20?'red':v<50?'yellow':'green');
+    $(tag).textContent = v==null?'暂无数据':v<20?'紧张':v<50?'一般':'充足';
+    const fe=$(foot); if (fe) fe.textContent = r.t ? '' : '';
+  };
+  setQ('#d2big','#d2bar','#d2tag','#d2foot',r.h5);
+  setQ('#d3big','#d3bar','#d3tag','#d3foot',r.d7);
+  $('#d3used').textContent = r.d7==null ? '--' : (100-r.d7)+'%';
+  $('#d2used').textContent = r.h5==null ? '--' : (100-r.h5)+'%';
+  const low = Math.min(r.h5??100, r.d7??100);
+  $('#d2tip').textContent = r.h5==null ? '暂无数据' : low<20 ? '建议切换账号' : low<50 ? '适度使用' : '放心使用';
+  $('#d2tip').style.color = r.h5==null ? '' : low<20 ? 'var(--red)' : low<50 ? 'var(--yellow)' : 'var(--green)';
+  const ranked=S.desktop.map(p=>({id:p.id, d7:remain(p.quota).d7})).filter(x=>x.d7!=null).sort((a,b)=>b.d7-a.d7);
+  const pos=cur ? ranked.findIndex(x=>x.id===cur.id) : -1;
+  $('#d3rank').textContent = pos<0 ? '--' : '第 '+(pos+1)+' / '+ranked.length;
+  const rec=(cur&&cur.quota&&cur.quota.recent)||[];
+  if (rec.length>1){
+    const W=300,H=46,max=7*24*60, pts=rec.map(p=>[p[0]/max*W, H-4-(100-p[2])/100*(H-8)]);
+    const line=pts.map((p,i)=>(i?'L':'M')+p[0].toFixed(1)+','+p[1].toFixed(1)).join('');
+    $('#d3spark').innerHTML=`<defs><linearGradient id="gs" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ff5a1f" stop-opacity=".45"/><stop offset="1" stop-color="#ffc93c" stop-opacity="0"/></linearGradient></defs>
+      <path d="${line}L${pts[pts.length-1][0]},${H}L${pts[0][0]},${H}Z" fill="url(#gs)" stroke="none"/><path d="${line}" stroke="#ff7a33" stroke-width="2" fill="none" vector-effect="non-scaling-stroke"/>`;
+  } else $('#d3spark').innerHTML='';
+  $('#d3spark').style.display = rec.length>1 ? '' : 'none';
+  if (cur){
+    $('#curState').className='tag '+(S.desktopRunning?'green':'gray'); $('#curState').textContent=S.desktopRunning?'● 使用中':'未运行';
+    $('#curBox').innerHTML = `<div class="curRow"><div class="who" style="flex:none;max-width:48%">${avatar(cur.email||cur.id,cur.remark)}<div style="min-width:0"><div class="name">${esc(M(cur.remark))}</div>
+      <div class="tags">${cur.email?`<span class="tag gold">${esc(M(cur.email))}</span>`:''}<span class="tag cream">${cur.sessions} 条会话</span></div></div></div>
+      <div class="qbars" style="flex:0 1 300px;min-width:0;margin-left:auto">${qbar('5H 余量',r.h5)}${qbar('7天 余量',r.d7)}</div></div>`;
+  } else $('#curBox').innerHTML='<div class="sub">还没有桌面账号</div>';
+  const rows=S.desktop.map(p=>({p, r:remain(p.quota)})).sort((a,b)=>(b.r.d7??-1)-(a.r.d7??-1)||(b.r.h5??-1)-(a.r.h5??-1));
+  $('#rankBox').innerHTML = rows.slice(0,4).map(({p,r})=>`<div class="rec ${p.id===S.best?'best':''}">
+      ${avatar(p.email||p.id,p.remark)}<div class="t"><div>${esc(M(p.remark))} ${p.active?'<span class="tag main">当前</span>':''}${p.id===S.best?'<span class="tag gold">推荐</span>':''}</div>
+      <div class="sub">5H 余量 ${pctTxt(r.h5)} · 7 天余量 ${pctTxt(r.d7)}</div></div>
+      <span class="pct ${lvl(r.d7)}">${pctTxt(r.d7)}</span>
+      ${p.active?'':`<button class="op" data-sw="${esc(p.id)}" title="切换到此账号">${ico('swap')}</button>`}</div>`).join('') || '<div class="sub">添加账号后显示</div>';
+  $('#bestBtn').disabled = !S.best;
+}
+
+// 账号状态：正常 / 异常（未登录、额度用尽）
+function health(p){
+  const r=remain(p.quota), why=[];
+  if (!p.loggedIn) why.push('未登录或登录信息已失效');
+  if (r.h5!=null && r.h5<=0) why.push('5 小时额度已用完');
+  if (r.d7!=null && r.d7<=0) why.push('7 天额度已用完');
+  return why;
+}
+function healthTag(p){
+  const why=health(p);
+  return why.length ? `<span class="tag red st" title="${esc(why.join('；'))}">● 异常</span>` : '<span class="tag green st" title="登录正常，额度可用">● 正常</span>';
+}
+function renderDesk(){
+  const q=$('#aq').value.trim().toLowerCase();
+  const list=S.desktop.filter(p=>!q||(p.remark+' '+p.email).toLowerCase().includes(q));
+  if (!list.length){ $('#dlist').innerHTML=`<div class="empty"><div class="bigt">${S.desktop.length?'没有匹配的账号':'还没有账号'}</div>点「添加账号」会打开 Claude 官方登录页</div>`; return; }
+  $('#dlist').innerHTML = list.map(p=>{
+    const [d,t]=(p.lastUsed||'').split(' '), r=remain(p.quota);
+    return `<div class="tr g-desk ${p.active?'cur':''}" data-id="${esc(p.id)}">
+      <div class="who">${avatar(p.email||p.id,p.remark)}<div style="min-width:0"><div class="name">${esc(M(p.remark))}</div>
+        <div class="tags">${healthTag(p)}
+        ${p.email?`<span class="tag gold">${esc(M(p.email))}</span>`:'<span class="tag gray">未识别邮箱</span>'}</div></div></div>
+      <div class="qbars" title="${r.t?'配额记录于 '+ago(r.t):'暂无配额记录'}">${qbar('5H 余量',r.h5)}${qbar('7天 余量',r.d7)}</div>
+      <div><span class="tag cream">${p.sessions} 条</span></div>
+      <div class="time">${esc(d||'-')}<small>${esc(t||'')}</small></div>
+      <div class="ops">${p.active
+          ? `<button class="btn sm" data-a="launch" ${S.desktopRunning?'disabled':''}>${ico('launch')}${S.desktopRunning?'使用中':'打开 App'}</button>`
+          : `<button class="btn sm main" data-a="switch">${ico('swap')}切换到此账号</button>`}
+        <button class="op" data-a="rename" title="改备注">${ico('edit')}</button>
+        <button class="op" data-a="open" title="打开数据目录">${ico('folder')}</button>
+        <button class="op danger" data-a="delete" title="删除" ${p.active?'disabled':''}>${ico('trash')}</button></div></div>`;
+  }).join('');
+}
+
+function renderCli(){
+  $('#recent').innerHTML=(S.recent||[]).map(r=>`<option value="${esc(r)}">`).join('');
+  if (!$('#cdir').value && S.recent && S.recent.length) $('#cdir').value=S.recent[0];
+  const cs=S.cliStatus||{};
+  $('#cliBanner').innerHTML = cs.installed
+    ? `<div class="notice" style="background:var(--greenBg);border-color:rgba(60,207,122,.3);color:var(--green)">${ico('check')}已检测到 Claude Code ${esc(cs.version||'')}<span class="spacer"></span><span class="num" style="font-size:12px;opacity:.8">${esc(cs.path)}</span></div>`
+    : `<div class="notice" style="background:var(--redBg);border-color:rgba(255,77,79,.35);color:#ff9a9a">${ico('info')}这台电脑还没有安装 Claude Code（claude 命令），终端账号需要先安装它。<span class="spacer"></span><button class="btn sm" id="cliRecheck">${ico('refresh')}重新检测</button><button class="btn sm main" id="cliInstall">${ico('launch')}一键安装</button></div>`;
+  const curDir=($('#cdir').value||'').toLowerCase();
+  $('#cdirChips').innerHTML = (S.recent||[]).length ? '<span class="sub">常用项目：</span>' + S.recent.slice(0,8).map(d=>{ const leaf=d.split(/[\\/]/).filter(Boolean).pop()||d;
+    return `<button class="chip ${d.toLowerCase()===curDir?'on':''}" data-dir="${esc(d)}" title="${esc(d)}" style="border:1px solid var(--border);background:var(--panel)">${ico('folder')}${esc(leaf)}</button>`; }).join('') : '';
+  const q=$('#aq').value.trim().toLowerCase();
+  $('#clist').innerHTML = S.cli.filter(a=>!q||(a.remark+' '+a.email).toLowerCase().includes(q)).map(a=>`<div class="tr g-cli" data-id="${esc(a.id)}">
+      <div class="who">${avatar(a.email||a.id,a.remark)}<div style="min-width:0"><div class="name">${esc(M(a.remark))}</div>
+        <div class="tags">${a.isDefault?'<span class="tag gray">原始 ~/.claude</span>':`<span class="tag gray">${esc(a.id)}</span>`}${a.email?`<span class="tag gold">${esc(M(a.email))}</span>`:''}</div></div></div>
+      <div>${a.loggedIn?'<span class="tag green">● 已登录</span>':'<span class="tag yellow">未登录 · 启动时登录</span>'}</div>
+      <div class="ops"><button class="btn sm main" data-a="new">${ico('play')}新对话</button>
+        <button class="btn sm" data-a="resume">${ico('history')}历史</button><button class="btn sm" data-a="continue">${ico('forward')}继续</button>
+        <button class="op" data-a="rename" title="改备注" ${a.isDefault?'disabled':''}>${ico('edit')}</button>
+        <button class="op danger" data-a="delete" title="删除" ${a.isDefault?'disabled':''}>${ico('trash')}</button></div></div>`).join('');
+}
+
+function setAccSub(s){
+  accSub=s; $$('#accSeg button').forEach(b=>b.classList.toggle('on',b.dataset.s===s));
+  $('#accDesk').classList.toggle('hide',s!=='desk'); $('#accCli').classList.toggle('hide',s!=='cli');
+  $('#accBtns').innerHTML = s==='desk'
+    ? `<button class="btn" id="dRefresh">${ico('refresh')}刷新</button><button class="btn main" id="dAdd">${ico('plus')}添加账号（官方登录）</button>`
+    : `<button class="btn" id="cRepair">${ico('wrench')}修复</button><button class="btn main" id="cAdd">${ico('plus')}添加账号</button>`;
+}
+$('#accSeg').onclick=e=>{ const b=e.target.closest('button'); if(b) setAccSub(b.dataset.s); };
+$('#aq').oninput=()=>{ renderDesk(); renderCli(); };
+
+// ---------- 会话记录 ----------
+async function loadSessions(){ try{ SESS=await api('sessions'); renderSess(); }catch(e){ toast(e.message,false); } }
+function renderSess(){
+  const showArch=$('#sArch').checked, q=$('#sq').value.trim().toLowerCase();
+  const base=SESS.filter(s=>showArch||!s.archived);
+  const accs=[...new Set(base.map(s=>s.account))];
+  $('#schips').innerHTML=[['all','全部',base.length],...accs.map(a=>[a,M(a),base.filter(s=>s.account===a).length])]
+    .map(([k,t,c])=>`<button class="chip ${sFilter===k?'on':''}" data-f="${esc(k)}">${esc(t)}<b>${c}</b></button>`).join('');
+  const list=base.filter(s=>(sFilter==='all'||s.account===sFilter)&&(!q||(s.title+' '+s.cwd+' '+s.model).toLowerCase().includes(q)));
+  PG_RENDER.sess=renderSess; setTimeout(()=>{ $('#slistPg').innerHTML=pager('sess', list.length); });
+  $('#slist').innerHTML = list.length ? pageOf('sess', list).map(s=>{ const [d,t]=dt(s.last); const leaf=(s.cwd||'').split(/[\\/]/).filter(Boolean).pop()||'-';
+    const proj=(s.cwd||'').includes('scratch-workspaces')?'临时会话':leaf;
+    return `<div class="tr g-sess slim"><div class="ellip" style="font-weight:600">${esc(s.title||'(无标题)')} ${s.archived?'<span class="tag gray">已归档</span>':''}</div>
+      <div class="ellip"><span class="tag gold">${esc(M(s.account))}</span></div>
+      <div class="ellip"><span class="tag cream">${esc(s.model||'-')}</span></div>
+      <div class="ellip num" style="color:var(--muted);font-size:12.5px">${esc(proj)}</div>
+      <div class="time">${d}<small>${t} · ${ago(s.last)}</small></div>
+      <div><button class="op" data-open="${esc(s.cwd)}" title="打开项目目录">${ico('folder')}</button></div></div>`; }).join('')
+    : '<div class="empty"><div class="bigt">没有会话记录</div>桌面 App 里的 Claude Code 会话会显示在这里</div>';
+}
+$('#sMerge').onclick=async()=>{
+  if (!await dialog({title:'合并所有账号的会话记录？', text:'会把所有桌面账号的会话记录互相补齐，合并后每个账号都能看到全部会话；任何账号里删除过的会话不会恢复。'+(S.desktopRunning?'\n\nClaude 桌面 App 正在运行，会先关闭，合并完自动重新打开（进行中的对话会中断）。':''), okText:'开始合并'})) return;
+  loading(true,'正在合并会话记录…');
+  try{ const d=await api('desktop/merge'); if (d && d.desktop) S=d; renderAll(); await loadSessions(); toast(d.mergeResult||'合并完成'); }
+  catch(e){ toast(e.message,false); } finally{ loading(false); }
+};
+$('#sq').oninput=()=>{ pgReset('sess'); renderSess(); }; $('#sArch').onchange=()=>{ pgReset('sess'); renderSess(); }; $('#sRefresh').onclick=()=>loadSessions().then(()=>toast('已刷新'));
+$('#schips').onclick=e=>{ const c=e.target.closest('.chip'); if(c){ sFilter=c.dataset.f; pgReset('sess'); renderSess(); } };
+$('#slist').onclick=e=>{ const b=e.target.closest('[data-open]'); if(b) api('openPath',{path:b.dataset.open}).catch(x=>toast(x.message,false)); };
+
+// ---------- 分页 ----------
+const PG={}, PG_RENDER={};
+function pgState(key){ if(!PG[key]){ let sz=20; try{ sz=+localStorage.getItem('pgSize')||20; }catch(e){} PG[key]={page:1,size:sz}; } return PG[key]; }
+function pgReset(key){ pgState(key).page=1; }
+function pageOf(key, list){ const st=pgState(key); const pages=Math.max(1,Math.ceil(list.length/st.size)); if(st.page>pages) st.page=pages; return list.slice((st.page-1)*st.size, st.page*st.size); }
+function pager(key, total){
+  const st=pgState(key), pages=Math.max(1,Math.ceil(total/st.size)), p=st.page;
+  if (!total) return '';
+  const from=(p-1)*st.size+1, to=Math.min(total,p*st.size);
+  const nums=[]; for(let i=1;i<=pages;i++){ if(i===1||i===pages||Math.abs(i-p)<=2) nums.push(i); else if(nums[nums.length-1]!=='…') nums.push('…'); }
+  return `<div class="pager" data-key="${key}"><span class="sub">显示第 ${from} 到 ${to} 条，共 ${total.toLocaleString()} 条</span>
+    <span class="sub">每页</span><select class="sel sm" data-pg-size>${[10,20,50,100].map(n=>`<option value="${n}" ${n===st.size?'selected':''}>${n} 条</option>`).join('')}</select>
+    <span class="spacer"></span>
+    <button class="pg" data-pg="prev" ${p<=1?'disabled':''}>‹</button>
+    ${nums.map(n=>n==='…'?'<span class="sub">…</span>':`<button class="pg ${n===p?'on':''}" data-pg="${n}">${n}</button>`).join('')}
+    <button class="pg" data-pg="next" ${p>=pages?'disabled':''}>›</button></div>`;
+}
+document.addEventListener('click', e=>{
+  const b=e.target.closest('[data-pg]'); if(!b||b.disabled) return;
+  const key=b.closest('.pager').dataset.key, st=pgState(key), v=b.dataset.pg;
+  st.page = v==='prev' ? st.page-1 : v==='next' ? st.page+1 : +v;
+  PG_RENDER[key] && PG_RENDER[key]();
+});
+document.addEventListener('change', e=>{
+  if (!e.target.matches('[data-pg-size]')) return;
+  const key=e.target.closest('.pager').dataset.key, n=+e.target.value;
+  try{ localStorage.setItem('pgSize',n); }catch(x){}
+  Object.values(PG).forEach(s=>{ s.size=n; s.page=1; });
+  PG_RENDER[key] && PG_RENDER[key]();
+});
+
+// ---------- 用量统计 ----------
+let statsTimer=null, autoTimer=null, tRange='7d', tMetric='tokens', tTab='logs', PRICES=null;
+try{ tRange=localStorage.getItem('tRange')||'7d'; tMetric=localStorage.getItem('tMetric')||'tokens'; }catch(e){}
+const money = v => { v=+v||0; return '$' + (v>=1000 ? v.toLocaleString(undefined,{maximumFractionDigits:0}) : v>=1 ? v.toFixed(2) : v.toFixed(4)); };
+const RANGE_TXT = {today:'今天', '7d':'近 7 天', '30d':'近 30 天', all:'全部'};
+async function loadStats(force){
+  try{
+    const auto=+$('#tAuto').value||0;
+    STATS=await api('stats',{force:!!force, range:tRange, model:$('#tModelSel').value, account:$('#tAccSel').value, auto});
+    renderStats();
+    clearTimeout(statsTimer); if (STATS.scanning) statsTimer=setTimeout(()=>loadStats(), 1200);
+  }catch(e){ toast(e.message,false); }
+}
+function fillSel(sel, items, all, label){
+  const cur=sel.value;
+  sel.innerHTML=`<option value="">${all}</option>`+items.map(x=>`<option value="${esc(x)}">${esc(label?label(x):x)}</option>`).join('');
+  if (items.includes(cur)) sel.value=cur;
+}
+function renderStats(){
+  const s=STATS||{};
+  // 仪表盘卡片
+  if (s.today){ $('#d4big').textContent=fmt(s.today.total); $('#d4in').textContent=money(s.today.cost); $('#d4out').textContent=s.today.requests+' 次';
+    $('#d4foot').textContent='本月 '+fmt(s.month.total)+' · '+money(s.month.cost); }
+  $('#d4tag').textContent = s.scanning && !s.ready ? `统计中 ${s.progress||0}%` : s.ready ? '更新于 '+s.scannedAt : '暂无';
+  $('#tSync').textContent = s.scanning ? `同步中 ${s.progress||0}%…` : s.ready ? '会话日志 · 同步于 '+s.scannedAt : '';
+  $$('#tRange button').forEach(b=>b.classList.toggle('on',b.dataset.v===tRange));
+  $$('#tMetric button').forEach(b=>b.classList.toggle('on',b.dataset.v===tMetric));
+  if (!s.ready){ $('#tCards').innerHTML=`<div class="box" style="grid-column:1/-1"><div class="sub">正在读取对话记录… ${s.progress||0}%</div><div class="track"><i style="width:${s.progress||0}%"></i></div></div>`; $('#tCards2').innerHTML=''; return; }
+  fillSel($('#tModelSel'), s.models||[], '全部模型');
+  fillSel($('#tAccSel'), s.accounts||[], '全部账号', M);
+  const m=s.summary;
+  const kc=(k,v,tip,cls='')=>`<div class="box kc ${cls}"><div class="k">${k}${tip?` <span title="${esc(tip)}" style="cursor:help">${ico('info')}</span>`:''}</div><div class="v num">${v}</div></div>`;
+  $('#tCards').innerHTML = kc('总成本（估算）',money(m.cost),'按「定价」页的单价估算的 API 等价费用；订阅账号实际不按此计费')
+    + kc('总请求数',m.requests.toLocaleString()) + kc('真实消耗 Tokens',fmt(m.total),'输入 + 输出 + 缓存创建 + 缓存命中')
+    + kc('缓存命中率',m.hitRate+'%','缓存命中 ÷（新增输入 + 缓存创建 + 缓存命中）');
+  $('#tCards2').innerHTML = kc('新增输入',fmt(m.input),'','s') + kc('输出',fmt(m.output),'','s') + kc('缓存创建',fmt(m.cacheWrite),'','s') + kc('缓存命中',fmt(m.cacheRead),'','s');
+  // 趋势
+  const tr=s.trend||[];
+  $('#tTrendTitle').textContent='使用趋势 · '+RANGE_TXT[tRange]+(tRange==='today'?'（按小时）':'');
+  const val=d=> tMetric==='cost'?d.cost : tMetric==='requests'?d.requests : d.total;
+  const max=Math.max(1e-9,...tr.map(val));
+  const fmtV=v=> tMetric==='cost'?money(v) : tMetric==='requests'?Math.round(v).toLocaleString() : fmt(v);
+  $('#tY').innerHTML=[1,.5,0].map(f=>`<span>${fmtV(max*f)}</span>`).join('');
+  if (tMetric==='tokens'){
+    $('#tLegend').innerHTML='<span><i style="background:#ff5a1f"></i>新增输入</span><span><i style="background:#ffc93c"></i>输出</span><span><i style="background:#ffe7a8"></i>缓存命中</span><span><i style="background:#ff9a5c"></i>缓存创建</span>';
+    $('#tChart').innerHTML = tr.map((d,i)=>{ const parts=[d.input,d.output,d.cacheRead,d.cacheWrite];
+      return `<div class="col" data-i="${i}" style="height:${Math.max(1,d.total/max*100)}%">${parts.map((v,j)=>`<i style="height:${d.total?v/d.total*100:0}%;background:${CH[j]}"></i>`).join('')}</div>`; }).join('');
+  } else {
+    $('#tLegend').innerHTML = tMetric==='cost' ? '<span><i style="background:#ffc93c"></i>成本（美元）</span>' : '<span><i style="background:#ff5a1f"></i>请求数</span>';
+    const c = tMetric==='cost' ? 'linear-gradient(180deg,#ffd76a,#ffb21f)' : 'linear-gradient(180deg,#ff7a33,#f23d0f)';
+    $('#tChart').innerHTML = tr.map((d,i)=>`<div class="col" data-i="${i}" style="height:${Math.max(1,val(d)/max*100)}%;background:${c}"></div>`).join('');
+  }
+  const step=Math.ceil(tr.length/10);
+  $('#tX').innerHTML = tr.map((d,i)=>`<span>${i%step===0?d.name:''}</span>`).join('');
+  renderStatsTab(); renderDashTrend();
+}
+function renderDashTrend(){
+  const s=STATS||{}, tr=s.trend||[]; if(!s.ready) return;
+  $('#dTrendTitle').textContent='用量趋势 · '+RANGE_TXT[tRange];
+  $('#dTrendSum').textContent=fmt(s.summary.total)+' · '+money(s.summary.cost);
+  const max=Math.max(1,...tr.map(d=>d.total));
+  $('#dChart').innerHTML=tr.map((d,i)=>`<div class="col" data-i="${i}" title="${d.name}  ${fmt(d.total)} · ${money(d.cost)} · ${d.requests} 次" style="height:${Math.max(1,d.total/max*100)}%">${[d.input,d.output,d.cacheRead,d.cacheWrite].map((v,j)=>`<i style="height:${d.total?v/d.total*100:0}%;background:${CH[j]}"></i>`).join('')}</div>`).join('');
+  const step=Math.ceil(tr.length/8); $('#dX').innerHTML=tr.map((d,i)=>`<span>${i%step===0?d.name:''}</span>`).join('');
+}
+function renderDashLogs(){
+  $('#dLogs').innerHTML = LOGS.length ? LOGS.slice(0,12).map(l=>`<div class="mlog"><span class="num sub" style="width:120px">${esc(l.t.slice(5))}</span><span class="tag ${l.action.includes('切换')?'main':l.action.includes('删除')?'red':'gold'}">${esc(l.action)}</span><span class="ellip">${esc(M(l.target))}${l.detail?`<span class="sub"> · ${esc(l.detail)}</span>`:''}</span>${l.ok?'<span class="tag green">成功</span>':'<span class="tag red">失败</span>'}</div>`).join('')
+    : '<div class="empty" style="padding:30px">暂无操作记录</div>';
+}
+function rankTable(rows, label){
+  const tot=rows.reduce((a,r)=>a+r.total,0)||1;
+  return `<div class="tblwrap"><table class="tbl"><tr><th>名称</th><th class="r">请求</th><th class="r">新增输入</th><th class="r">输出</th><th class="r">缓存创建</th><th class="r">缓存命中</th><th class="r">命中率</th><th class="r">Tokens</th><th class="r">成本</th><th style="width:22%">占比</th></tr>`
+    + (rows.length ? rows.map(r=>`<tr><td class="ellip" style="max-width:320px">${esc(label(r.name))}</td><td class="r num">${r.requests.toLocaleString()}</td><td class="r num">${fmt(r.input)}</td><td class="r num">${fmt(r.output)}</td><td class="r num">${fmt(r.cacheWrite)}</td><td class="r num">${fmt(r.cacheRead)}</td><td class="r num">${r.hitRate}%</td><td class="r num">${fmt(r.total)}</td><td class="r num" style="color:var(--gold)">${money(r.cost)}</td>
+      <td><div class="hbar">${[r.input,r.output,r.cacheRead,r.cacheWrite].map((v,j)=>`<i style="width:${v/tot*100}%;background:${CH[j]}"></i>`).join('')}</div><div class="sub" style="font-size:11px">${(r.total/tot*100).toFixed(1)}%</div></td></tr>`).join('')
+      : '<tr><td colspan="10" class="sub" style="text-align:center;padding:40px">暂无数据</td></tr>') + '</table></div>';
+}
+const projLabel = n => n.startsWith('(') ? n : n.split(/[\\/]/).filter(Boolean).slice(-2).join('\\');
+function renderStatsTab(){
+  $$('#tTabs button').forEach(b=>b.classList.toggle('on',b.dataset.v===tTab));
+  const s=STATS||{}; if (!s.ready && tTab!=='price'){ $('#tTable').innerHTML=''; return; }
+  if (tTab==='logs'){
+    $('#tTabNote').textContent=`共 ${(s.logs||[]).length.toLocaleString()} 条${(s.logs||[]).length>=5000?'（最多显示 5000 条）':''} · 速度为近似值`;
+    PG_RENDER.logs=renderStatsTab;
+    $('#tTable').innerHTML = `<div class="tblwrap"><table class="tbl"><tr><th>时间</th><th>账号</th><th>模型</th><th>项目</th><th class="r">新增输入</th><th class="r">输出</th><th class="r">缓存创建</th><th class="r">缓存命中</th><th class="r">成本</th><th class="r">速度</th><th class="r">耗时</th></tr>`
+      + pageOf('logs', s.logs||[]).map(l=>`<tr><td class="num" style="color:var(--muted)">${esc(l.t)}</td><td><span class="tag gold">${esc(M(l.account))}</span></td><td><span class="tag cream">${esc(l.model)}</span></td>
+        <td class="ellip" style="max-width:180px;color:var(--muted)">${esc(projLabel(l.project))}</td><td class="r num">${fmt(l.input)}</td><td class="r num">${fmt(l.output)}</td><td class="r num">${fmt(l.cacheWrite)}</td><td class="r num">${fmt(l.cacheRead)}</td>
+        <td class="r num" style="color:var(--gold)">${l.priced?money(l.cost):'<span class="sub">未定价</span>'}</td><td class="r num">${l.speed?'≈'+l.speed+' tok/s':'—'}</td><td class="r num" style="color:var(--muted)">${l.secs?l.secs+'s':'—'}</td></tr>`).join('')
+      + '</table></div>' + pager('logs', (s.logs||[]).length);
+  } else if (tTab==='acc'){ $('#tTabNote').textContent='按账号汇总（桌面 App 会话按所属账号归类）'; $('#tTable').innerHTML=rankTable(s.byAccount||[],M); }
+  else if (tTab==='model'){ $('#tTabNote').textContent='按模型汇总'; $('#tTable').innerHTML=rankTable(s.byModel||[],n=>n); }
+  else if (tTab==='proj'){ $('#tTabNote').textContent='按项目目录汇总（前 30）'; $('#tTable').innerHTML=rankTable(s.byProject||[],projLabel); }
+  else renderPricing();
+}
+async function renderPricing(){
+  $('#tTabNote').textContent='单位：美元 / 百万 Token · 按模型名前缀匹配，最长者优先';
+  if (!PRICES) { try{ PRICES=await api('pricing'); }catch(e){ toast(e.message,false); return; } }
+  const f=v=>`<input class="num" value="${+v}">`;
+  $('#tTable').innerHTML = `<div class="tblwrap"><table class="tbl" id="priceTbl"><tr><th>模型前缀</th><th class="r">输入</th><th class="r">输出</th><th class="r">缓存命中</th><th class="r">缓存创建 5 分钟</th><th class="r">缓存创建 1 小时</th><th></th></tr>`
+    + PRICES.map(p=>`<tr><td><input class="k" value="${esc(p.Key)}"></td><td class="r">${f(p.Input)}</td><td class="r">${f(p.Output)}</td><td class="r">${f(p.CacheRead)}</td><td class="r">${f(p.CacheWrite5m)}</td><td class="r">${f(p.CacheWrite1h)}</td><td><button class="op danger" data-del>${ico('trash')}</button></td></tr>`).join('')
+    + `</table></div><div class="bar" style="padding:12px 14px"><button class="btn sm" id="pAdd">${ico('plus')}添加模型</button><div class="spacer"></div><button class="btn sm" id="pReset">恢复默认价格</button><button class="btn sm main" id="pSave">${ico('check')}保存定价</button></div>`;
+}
+function readPrices(){
+  return [...$$('#priceTbl tr')].slice(1).map(tr=>{ const v=[...tr.querySelectorAll('input')].map(i=>i.value.trim());
+    return {Key:v[0], Input:+v[1]||0, Output:+v[2]||0, CacheRead:+v[3]||0, CacheWrite5m:+v[4]||0, CacheWrite1h:+v[5]||0}; }).filter(p=>p.Key);
+}
+$('#tTable').addEventListener('click', async e=>{
+  if (e.target.closest('[data-del]')) { PRICES=readPrices(); e.target.closest('tr').remove(); PRICES=readPrices(); return; }
+  if (e.target.closest('#pAdd')) { PRICES=readPrices(); PRICES.push({Key:'',Input:0,Output:0,CacheRead:0,CacheWrite5m:0,CacheWrite1h:0}); renderPricing(); return; }
+  if (e.target.closest('#pSave')) { try{ PRICES=await api('pricing/set',{list:readPrices()}); toast('定价已保存'); loadStats(); renderPricing(); }catch(x){ toast(x.message,false); } return; }
+  if (e.target.closest('#pReset') && await dialog({title:'恢复默认价格？',text:'会丢弃你修改过的定价，恢复为 Anthropic 官方 API 价格。',okText:'恢复'})) { PRICES=await api('pricing/reset'); toast('已恢复默认价格'); loadStats(); renderPricing(); }
+});
+$('#tRange').onclick=e=>{ const b=e.target.closest('button'); if(!b) return; tRange=b.dataset.v; pgReset('logs'); try{localStorage.setItem('tRange',tRange)}catch(x){} loadStats(); };
+$('#tMetric').onclick=e=>{ const b=e.target.closest('button'); if(!b) return; tMetric=b.dataset.v; try{localStorage.setItem('tMetric',tMetric)}catch(x){} renderStats(); };
+$('#tTabs').onclick=e=>{ const b=e.target.closest('button'); if(!b) return; tTab=b.dataset.v; renderStatsTab(); };
+$('#tModelSel').onchange=()=>{ pgReset('logs'); loadStats(); }; $('#tAccSel').onchange=()=>{ pgReset('logs'); loadStats(); };
+$('#tAuto').onchange=()=>{ try{localStorage.setItem('tAuto',$('#tAuto').value)}catch(x){} setAuto(); };
+function setAuto(){ clearInterval(autoTimer); const n=+$('#tAuto').value; if(n>0) autoTimer=setInterval(()=>{ if(!document.hidden && page==='stats') loadStats(); }, n*1000); }
+try{ $('#tAuto').value=localStorage.getItem('tAuto')||'0'; }catch(e){} setAuto();
+$('#tChart').onmousemove=e=>{
+  const c=e.target.closest('.col'), tip=$('#tip'); if(!c||!STATS||!STATS.trend){ tip.style.display='none'; return; }
+  const d=STATS.trend[+c.dataset.i];
+  tip.innerHTML=`<b>${d.name}</b><div><span>请求</span><b>${d.requests}</b></div><div><span>新增输入</span><b>${fmt(d.input)}</b></div><div><span>输出</span><b>${fmt(d.output)}</b></div><div><span>缓存创建</span><b>${fmt(d.cacheWrite)}</b></div><div><span>缓存命中</span><b>${fmt(d.cacheRead)}</b></div><div><span>合计</span><b>${fmt(d.total)}</b></div><div><span>成本</span><b>${money(d.cost)}</b></div>`;
+  tip.style.display='block'; tip.style.left=Math.min(e.clientX+14, innerWidth-200)+'px'; tip.style.top=Math.max(10,e.clientY-180)+'px';
+};
+$('#tChart').onmouseleave=()=>$('#tip').style.display='none';
+$('#tRefresh').onclick=()=>loadStats(true).then(()=>toast('已同步'));
+
+// ---------- 日志 ----------
+async function loadLogs(){ try{ LOGS=await api('logs'); renderLogs(); renderDashLogs(); }catch(e){ toast(e.message,false); } }
+function renderLogs(){
+  const acts=[...new Set(LOGS.map(l=>l.action))];
+  $('#lchips').innerHTML=[['all','全部',LOGS.length],['fail','失败',LOGS.filter(l=>!l.ok).length],...acts.map(a=>[a,a,LOGS.filter(l=>l.action===a).length])]
+    .map(([k,t,c])=>`<button class="chip ${lFilter===k?'on':''}" data-f="${esc(k)}">${esc(t)}<b>${c}</b></button>`).join('');
+  const list=LOGS.filter(l=>lFilter==='all'||(lFilter==='fail'?!l.ok:l.action===lFilter));
+  PG_RENDER.oplog=renderLogs; setTimeout(()=>{ $('#llistPg').innerHTML=pager('oplog', list.length); });
+  $('#llist').innerHTML = list.length ? pageOf('oplog', list).map(l=>`<div class="tr g-log slim"><div class="num" style="font-size:12.5px;color:var(--muted)">${esc(l.t)}</div>
+      <div><span class="tag ${l.action.includes('切换')?'main':l.action.includes('删除')?'red':'gold'}">${esc(l.action)}</span></div>
+      <div class="ellip">${esc(M(l.target))}${l.detail?`<div class="sub ellip" style="color:${l.ok?'var(--muted)':'var(--red)'}">${esc(l.detail)}</div>`:''}</div>
+      <div>${l.ok?'<span class="tag green">成功</span>':'<span class="tag red">失败</span>'}</div>
+      <div class="num" style="text-align:right;color:var(--muted);font-size:12.5px">${l.ms>=1000?(l.ms/1000).toFixed(1)+'s':l.ms+'ms'}</div></div>`).join('')
+    : '<div class="empty"><div class="bigt">暂无日志</div>切换、添加、删除账号等操作都会记录在这里</div>';
+}
+$('#lchips').onclick=e=>{ const c=e.target.closest('.chip'); if(c){ lFilter=c.dataset.f; pgReset('oplog'); renderLogs(); } };
+$('#lRefresh').onclick=()=>loadLogs().then(()=>toast('已刷新'));
+$('#lClear').onclick=async()=>{ if(await dialog({title:'清空操作日志？',text:'只清空本工具的操作记录，不影响任何账号和对话。',okText:'清空',danger:true})){ await api('logs/clear'); loadLogs(); toast('已清空'); } };
+
+// ---------- 设置 ----------
+function renderSettings(){
+  const st=S.settings||{};
+  const row=(key,title,desc)=>`<div class="setting"><div class="t"><b>${title}</b><span>${desc}</span></div><button class="switch ${st[key]?'on':''}" data-key="${key}"></button></div>`;
+  $('#setRun').innerHTML = row('autoStart','开机自动启动','登录 Windows 后在托盘后台启动，不弹出窗口')
+    + row('trayMode','关闭窗口后继续后台运行','窗口关掉后留在右下角托盘，右键托盘图标可快速切换账号')
+    + row('notify','托盘通知','切换成功 / 失败时在右下角弹出提示')
+    + `<div class="setting"><div class="t"><b>自动刷新全部数据</b><span>按间隔在后台刷新账号、余量、用量统计、会话记录和日志（右上角刷新按钮的绿点表示已开启）</span></div><select class="sel" id="autoAllSel">${[[60,'每 1 分钟（默认）'],[180,'每 3 分钟'],[300,'每 5 分钟'],[600,'每 10 分钟'],[0,'关闭']].map(([v,t])=>`<option value="${v}" ${v===AUTO_ALL?'selected':''}>${t}</option>`).join('')}</select></div>`
+    + `<div class="setting"><div class="t"><b>界面字号</b><span>整个应用的文字和界面大小，窗口较小时会在此基础上自动略缩</span></div><select class="sel" id="uiScaleSel">${[[0.9,'小 90%'],[1,'标准 100%'],[1.12,'大 112%'],[1.25,'更大 125%']].map(([v,t])=>`<option value="${v}" ${Math.abs(v-UI_SCALE)<0.001?'selected':''}>${t}</option>`).join('')}</select></div>`;
+  $('#setUse').innerHTML = row('syncSessions','切换时同步会话记录','把上一个账号的全部会话记录带到新账号，切换后桌面 App 里还能看到、继续之前的对话')
+    + row('syncClientSettings','切换时同步客户端设置','把上一个账号里调好的字号（界面缩放）、主题、窗口大小与布局、MCP 配置带到新账号；不会带登录信息')
+    + row('confirmSwitch','切换前确认','桌面 App 运行中时，切换前先弹窗确认')
+    + row('maskDefault','默认脱敏显示','打开时隐藏邮箱中间部分（右上角眼睛按钮可临时切换）')
+    + `<div class="setting"><div class="t"><b>称呼</b><span>仪表盘问候语里显示的名字，留空则显示当前账号备注</span></div><input class="input" id="uname" value="${esc(st.userName||'')}" placeholder="例如：老六"></div>`;
+  const pathRow=(t,p)=>`<div class="setting"><div class="t"><b>${t}</b><span class="num">${esc(p||'')}</span></div><button class="btn sm" data-path="${esc(p||'')}">${ico('folder')}打开</button></div>`;
+  $('#setData').innerHTML = `<div class="setting"><div class="t"><b>Claude Tools v${esc(st.version||'')}</b><span>只管理你自己的账号，所有数据都保存在本机，不会上传。</span></div><button class="btn sm red" id="quitBtn">${ico('power')}退出程序</button></div>`;
+}
+$('#p-set').onclick=async e=>{
+  const sw=e.target.closest('.switch');
+  if (sw){ try{ const st=await api('settings/set',{key:sw.dataset.key,value:!sw.classList.contains('on')}); S.settings=st;
+      if (sw.dataset.key==='maskDefault') setMask(st.maskDefault); renderSettings(); toast('已保存'); }catch(x){ toast(x.message,false); } return; }
+  const p=e.target.closest('[data-path]'); if (p){ api('openPath',{path:p.dataset.path}).catch(x=>toast(x.message,false)); return; }
+  if (e.target.closest('#quitBtn') && await dialog({title:'退出 Claude Tools？',text:'托盘图标会消失，开机自启动设置不受影响。',okText:'退出',danger:true})){ await api('quit'); window.close(); }
+};
+$('#p-set').addEventListener('change', async e=>{ if(e.target.id==='autoAllSel'){ setAutoAll(+e.target.value); toast(+e.target.value?'已开启自动刷新':'已关闭自动刷新'); return; } if(e.target.id==='uiScaleSel'){ UI_SCALE=+e.target.value; try{localStorage.setItem('uiScale2',UI_SCALE)}catch(x){} applyZoom(); toast('界面字号已调整'); return; } if(e.target.id==='uname'){ const st=await api('settings/set',{key:'userName',value:e.target.value.trim()}); S.settings=st; renderDash(); toast('已保存'); } });
+
+// ---------- 存储扫描 ----------
+const fmtSize = b => { b=+b||0; if (b>=1073741824) return (b/1073741824).toFixed(2)+' GB'; if (b>=1048576) return (b/1048576).toFixed(1)+' MB'; if (b>=1024) return (b/1024).toFixed(0)+' KB'; return b+' B'; };
+let SCAN=null;
+async function doScan(){
+  $('#scanBtn').disabled=true; $('#scanInfo').textContent='正在扫描…'; $$('[data-scan]').forEach(b=>{ b.disabled=true; b.innerHTML=ico('refresh')+'扫描中…'; });
+  try{ SCAN=await api('storage/scan'); renderScan(); }catch(e){ toast(e.message,false); $('#scanInfo').textContent=''; }
+  finally{ $('#scanBtn').disabled=false; }
+}
+function renderScan(){
+  if (!SCAN){
+    // 未扫描时也列出各目录，每行都能单独点「扫描」
+    const st=S.settings||{};
+    const rows=[...S.desktop.map(p=>({name:p.remark, note:p.active?'桌面 App 账号 · 当前使用':'桌面 App 账号存档', path:p.dir, active:p.active, kind:'desktop'})),
+      {name:'对话记录（所有账号共用）', note:'~/.claude/projects，会话内容和 Token 统计都来自这里', path:(st.cliDir||'').replace(/\.claude-accounts$/,'.claude\\projects')},
+      {name:'终端账号目录', note:'终端 Claude Code 各账号的登录与设置', path:st.cliDir||''},
+      {name:'本工具数据', note:'设置、操作日志、定价、窗口缓存', path:st.stateDir||''}];
+    $('#scanInfo').textContent='尚未扫描';
+    $('#scanList').innerHTML = rows.map(x=>`<div class="setting"><div class="t"><b>${esc(M(x.name))} ${x.active?'<span class="tag main">当前使用</span>':''}${x.kind==='desktop'&&!x.active?'<span class="tag gray">已保存</span>':''}</b>
+        <span>${esc(x.note)}</span><br><span class="num" style="font-size:11.5px">${esc(x.path)}</span></div>
+      <div style="text-align:right;min-width:150px"><div class="sub">未扫描</div></div>
+      <div style="display:flex;gap:8px"><button class="btn sm" data-scan>${ico('search')}扫描</button><button class="btn sm" data-path="${esc(x.path)}">${ico('folder')}打开</button></div></div>`).join('');
+    return;
+  }
+  $('#scanInfo').textContent=`共 ${fmtSize(SCAN.total)} · 可清理 ${fmtSize(SCAN.cleanable)} · 扫描于 ${SCAN.scannedAt}（${(SCAN.ms/1000).toFixed(1)}s）`;
+
+  const max=Math.max(1,...SCAN.items.map(x=>x.size));
+  $('#scanList').innerHTML = SCAN.items.map(x=>`<div class="setting">
+      <div class="t"><b>${esc(M(x.name))} ${x.active?'<span class="tag main">当前使用</span>':''}${x.kind==='desktop'&&!x.active?'<span class="tag gray">已保存</span>':''}</b>
+        <span>${esc(x.note)}</span><br><span class="num" style="font-size:11.5px">${esc(x.path)}</span>
+        <div class="hbar" style="margin-top:8px;max-width:520px"><i style="width:${x.size/max*100}%;background:var(--grad)"></i></div></div>
+      <div style="text-align:right;min-width:150px"><div class="num" style="font-size:18px;font-weight:800">${x.exists?fmtSize(x.size):'不存在'}</div>
+        <div class="sub">${x.files.toLocaleString()} 个文件${x.cache?` · 缓存 ${fmtSize(x.cache)}`:''}</div></div>
+      <div style="display:flex;gap:8px">
+        <button class="btn sm" data-scan>${ico('refresh')}重新扫描</button><button class="btn sm" data-path="${esc(x.path)}" ${x.exists?'':'disabled'}>${ico('folder')}打开</button></div></div>`).join('');
+}
+$('#scanBtn').onclick=doScan;
+$('#scanList').addEventListener('click', async e=>{ if (e.target.closest('[data-scan]')) { doScan(); return; } const b=e.target.closest('[data-clean]'); if(!b) return; const x=SCAN.items.find(i=>i.id===b.dataset.clean);
+  if (!await dialog({title:'清理「'+M(x.name)+'」的缓存？',text:`将删除约 ${fmtSize(x.cache)} 的浏览器缓存，切回该账号时会自动重建；登录信息和会话记录不受影响。`,okText:'清理',danger:true})) return;
+  loading(true,'正在清理缓存…'); try{ SCAN=await api('storage/clean',{id:x.id}); renderScan(); toast('缓存已清理'); }catch(er){ toast(er.message,false); } finally{ loading(false); } });
+// ---------- 缓存清理 ----------
+let CC=null;
+async function ccScan(){
+  $('#ccScan').disabled=true; $('#ccScan').classList.add('spinning');
+  try{ CC=await api('cache/scan'); renderCC(); }catch(e){ toast(e.message,false); } finally{ $('#ccScan').disabled=false; $('#ccScan').classList.remove('spinning'); }
+}
+function ccSelected(){ return [...document.querySelectorAll('#ccList input[data-cc]:checked')].map(i=>i.dataset.cc); }
+function ccUpdate(){
+  if(!CC) return; const ids=ccSelected(), items=CC.items.filter(x=>ids.includes(x.id));
+  const size=items.reduce((a,x)=>a+x.size,0), needClose=items.some(x=>x.needsClose)&&S.desktopRunning;
+  const desk=CC.items.filter(x=>x.id.startsWith('desk')).reduce((a,x)=>a+x.size,0), code=CC.total-desk;
+  const card=(t,v,sub,g)=>`<div class="box kc"><div class="k">${t}</div><div class="v num"${g?' style="color:var(--gold)"':''}>${v}</div>${sub?`<div class="sub">${sub}</div>`:''}</div>`;
+  $('#ccCards').innerHTML = card('缓存总计',fmtSize(CC.total),CC.items.length+' 项') + card('桌面 App',fmtSize(desk),'各账号存档合计') + card('Claude Code',fmtSize(code),'~/.claude 与终端账号') + card('已选中',fmtSize(size),ids.length+' 项',true);
+  $('#ccInfo').textContent = needClose ? '已选中当前账号的桌面 App 缓存：清理时会先关闭 Claude 桌面 App，清理完自动重新打开' : '只清理 Claude 桌面 App 和 Claude Code 的缓存，不会动登录信息、会话记录和设置' + (CC.scannedAt?' · 扫描于 '+CC.scannedAt:'');
+  $('#ccClean').disabled = !ids.length;
+}
+function renderCC(){
+  if(!CC){ $('#ccList').innerHTML='<div class="empty"><div class="bigt">正在扫描缓存…</div></div>'; $('#ccCards').innerHTML=''; return; }
+  const groups={}; CC.items.forEach(x=>(groups[x.group]=groups[x.group]||[]).push(x));
+  $('#ccList').innerHTML = Object.keys(groups).length ? Object.entries(groups).map(([g,items])=>`
+    <div class="ccg"><div class="ccg-h"><label><input type="checkbox" data-ccg="${esc(g)}" ${items.every(x=>!x.needsClose)?'checked':''}> <b>${esc(M(g))}</b></label><span class="num" style="font-weight:700">${fmtSize(items.reduce((a,x)=>a+x.size,0))}</span></div>
+    ${items.map(x=>`<label class="cci"><input type="checkbox" data-cc="${esc(x.id)}" data-g="${esc(g)}" ${x.needsClose?'':'checked'}><span class="ellip" title="${esc(x.path)}">${esc(x.label)}</span><span class="sub num">${x.files.toLocaleString()} 个文件</span><b class="num">${fmtSize(x.size)}</b></label>`).join('')}</div>`).join('')
+    : '<div class="empty"><div class="bigt">很干净</div>没有可清理的缓存</div>';
+  ccUpdate();
+}
+$('#ccScan').onclick=ccScan;
+$('#ccAll').onclick=()=>{ document.querySelectorAll('#ccList input[type=checkbox]').forEach(i=>i.checked=true); ccUpdate(); };
+$('#ccNone').onclick=()=>{ document.querySelectorAll('#ccList input[type=checkbox]').forEach(i=>i.checked=false); ccUpdate(); };
+$('#ccList').addEventListener('change', e=>{
+  const g=e.target.dataset.ccg; if (g!==undefined) document.querySelectorAll(`#ccList input[data-g="${CSS.escape(g)}"]`).forEach(i=>i.checked=e.target.checked);
+  ccUpdate();
+});
+$('#ccClean').onclick=async()=>{
+  const ids=ccSelected(); if(!ids.length) return;
+  const items=CC.items.filter(x=>ids.includes(x.id)), size=items.reduce((a,x)=>a+x.size,0), needClose=items.some(x=>x.needsClose)&&S.desktopRunning;
+  if (!await dialog({title:`清理 ${ids.length} 项缓存（${fmtSize(size)}）？`, text:'只删除缓存文件，Claude 会在需要时自动重建；登录信息、会话记录和设置不受影响。'+(needClose?'\n\n其中包含当前账号的桌面 App 缓存：会先关闭 Claude 桌面 App，清理完自动重新打开（进行中的对话会中断）。':''), okText:'清理', danger:true})) return;
+  loading(true,'正在清理缓存…');
+  try{ CC=await api('cache/clean',{ids}); renderCC(); toast(CC.message||'清理完成'); }catch(e){ toast(e.message,false); } finally{ loading(false); }
+};
+
+// ---------- 账号操作 ----------
+const switchMsg = name => d => '已切换到「'+name+'」' + (d && d.lastSync ? '\n' + d.lastSync : '');
+async function doSwitch(p){
+  if (S.desktopRunning && S.settings.confirmSwitch!==false && !await dialog({title:'切换到「'+M(p.remark)+'」？', text:'Claude 桌面 App 会被关闭并以这个账号重新打开，进行中的对话会中断。'+(S.settings.syncSessions!==false?'\n当前账号的会话记录会同步到新账号。':''), okText:'切换'})) return;
+  if (await run('desktop/switch',{id:p.id},'正在切换到「'+M(p.remark)+'」…',switchMsg(M(p.remark)))) loadStats();
+}
+document.addEventListener('click', async e=>{
+  const sw=e.target.closest('[data-sw]'); if (sw){ doSwitch(S.desktop.find(x=>x.id===sw.dataset.sw)); return; }
+  if (e.target.closest('#dRefresh')) { run('state',null,'刷新中…','已刷新'); return; }
+  if (e.target.closest('#dAdd')) {
+    const name=await dialog({title:'添加 Claude 桌面 App 账号', text:'先给新账号起个备注名（比如「工作号」）。\n确定后会关闭 Claude 桌面 App，再打开全新的官方登录页，用另一个账号登录即可。\n当前账号会自动保存，以后一键切回。', input:'', okText:'去登录'});
+    if (name!==null) run('desktop/add',{remark:name||'新账号'},'正在关闭 Claude 并准备登录页…','已打开 Claude 登录页，请在 App 里完成登录'); return;
+  }
+  if (e.target.closest('#cRepair')) { run('cli/repair',null,'修复中…','已修复所有账号的共享链接'); return; }
+  if (e.target.closest('#cAdd')) { const n=await dialog({title:'添加终端 Claude Code 账号', text:'给账号起个备注名，第一次启动时在弹出的终端里登录。', input:'', okText:'添加'}); if(n) run('cli/add',{remark:n},'创建中…','已添加，选好文件夹后点「新对话」登录'); return; }
+});
+$('#bestBtn').onclick=async()=>{ const p=S.desktop.find(x=>x.id===S.best); if(!p) return;
+  if (S.desktopRunning && S.settings.confirmSwitch!==false && !await dialog({title:'切换到余量最多的「'+M(p.remark)+'」？',text:'Claude 桌面 App 会被关闭并以这个账号重新打开。',okText:'切换'})) return;
+  run('desktop/best',null,'正在切换到「'+M(p.remark)+'」…',switchMsg(M(p.remark))); };
+$('#dlist').onclick=async e=>{
+  const b=e.target.closest('[data-a]'); if(!b||b.disabled) return;
+  const id=b.closest('.tr').dataset.id, p=S.desktop.find(x=>x.id===id), a=b.dataset.a;
+  if (a==='switch') doSwitch(p);
+  else if (a==='launch') run('desktop/launch',{id},'正在打开 Claude…','已打开 Claude 桌面 App');
+  else if (a==='rename'){ const v=await dialog({title:'修改备注', input:p.remark}); if(v) run('desktop/rename',{id,remark:v},'保存中…','已保存'); }
+  else if (a==='open') api('desktop/open',{id}).catch(x=>toast(x.message,false));
+  else if (a==='delete' && await dialog({title:'删除「'+M(p.remark)+'」？', text:'会删除这个账号保存的登录信息和它在桌面 App 里的会话记录，无法恢复。\n（~/.claude 里的对话记录不受影响）', okText:'删除', danger:true}))
+    run('desktop/delete',{id},'删除中…','已删除');
+};
+async function pickFolder(){ try{ const d=await api('pickDir',{start:$('#cdir').value}); if(d){ $('#cdir').value=d; renderCli(); } return d; }catch(e){ toast(e.message,false); return ''; } }
+$('#cPick').onclick=pickFolder;
+document.addEventListener('click', async e=>{
+  if (e.target.closest('#cliInstall')) {
+    if (!await dialog({title:'安装 Claude Code？', text:'会打开一个 PowerShell 窗口，运行 Anthropic 官方安装命令：\nirm https://claude.ai/install.ps1 | iex\n\n需要联网，通常一两分钟。装完回来点「重新检测」。', okText:'开始安装'})) return;
+    try{ await api('cli/install'); toast('已打开安装窗口，装完点「重新检测」'); }catch(x){ toast(x.message,false); }
+  }
+  if (e.target.closest('#cliRecheck')) { loading(true,'正在检测 Claude Code…'); try{ S.cliStatus=await api('cli/status'); renderCli(); toast(S.cliStatus.installed?'已检测到 Claude Code':'仍未检测到 Claude Code', !!S.cliStatus.installed); }catch(x){ toast(x.message,false); } finally{ loading(false); } }
+});
+$('#cdirChips').onclick=e=>{ const b=e.target.closest('[data-dir]'); if(b){ $('#cdir').value=b.dataset.dir; renderCli(); } };
+$('#clist').onclick=async e=>{
+  const b=e.target.closest('[data-a]'); if(!b||b.disabled) return;
+  const id=b.closest('.tr').dataset.id, c=S.cli.find(x=>x.id===id), a=b.dataset.a;
+  if (['new','resume','continue'].includes(a)) {
+    if (S.cliStatus && !S.cliStatus.installed) { toast('请先安装 Claude Code（点上方「一键安装」）', false); return; }
+    if (!$('#cdir').value.trim()) { toast('先选择要在哪个项目文件夹里启动'); if (!await pickFolder()) return; }
+    run('cli/launch',{id,dir:$('#cdir').value,mode:a},'启动中…','已在新终端启动「'+M(c.remark)+'」');
+  }
+  else if (a==='rename'){ const v=await dialog({title:'修改备注', input:c.remark}); if(v) run('cli/rename',{id,remark:v},'保存中…','已保存'); }
+  else if (a==='delete' && await dialog({title:'删除「'+M(c.remark)+'」？', text:'只删除这个账号的登录信息和设置，共享的历史对话不会被删除。', okText:'删除', danger:true}))
+    run('cli/delete',{id},'删除中…','已删除');
+};
+
+// ---------- 主题 / 脱敏 ----------
+function setTheme(t){ document.documentElement.dataset.theme=t; $('#themeBtn').innerHTML=ico(t==='dark'?'sun':'moon'); try{localStorage.setItem('theme',t)}catch(e){} }
+function setMask(v){ masked=v; try{localStorage.setItem('masked',v?'1':'0')}catch(e){}
+  $('#maskBtn').innerHTML=ico(v?'eyeoff':'eye'); $('#maskBtn').title=v?'已脱敏，点击显示完整账号':'点击隐藏账号（脱敏）'; $('#maskBtn').classList.toggle('on',v);
+  renderAll(); if (SESS.length) renderSess(); if (STATS) renderStats(); if (LOGS.length) { renderLogs(); renderDashLogs(); } }
+$('#themeBtn').onclick=()=>setTheme(document.documentElement.dataset.theme==='dark'?'light':'dark');
+$('#maskBtn').onclick=()=>setMask(!masked);
+
+// ---------- 刷新全部数据 ----------
+let refreshing=false;
+let AUTO_ALL=60, autoAllTimer=null, lastAllAt=null;
+try{ const v=localStorage.getItem('autoAll'); if(v!==null) AUTO_ALL=+v; }catch(e){}
+if (AUTO_ALL>0 && AUTO_ALL<60) AUTO_ALL=60;   // 最短 1 分钟
+function setAutoAll(sec){
+  if (sec>0 && sec<60) sec=60;
+  AUTO_ALL=sec; try{ localStorage.setItem('autoAll',sec); }catch(e){}
+  clearInterval(autoAllTimer); if (sec>0) autoAllTimer=setInterval(()=>{ if(!document.hidden) refreshAll(true); }, sec*1000);
+  updateRefreshTip();
+}
+function updateRefreshTip(){
+  const b=$('#refreshAll'); b.classList.toggle('auto', AUTO_ALL>0);
+  b.title = (AUTO_ALL>0 ? '自动刷新：每 '+(AUTO_ALL>=60?(AUTO_ALL/60)+' 分钟':AUTO_ALL+' 秒') : '自动刷新：关闭') + (lastAllAt?' · 上次刷新 '+lastAllAt:'') + '\n点击立即刷新（F5）';
+}
+async function refreshAll(silent){
+  if (refreshing) return; refreshing=true;
+  const b=$('#refreshAll'); if (!silent) b.classList.add('spinning');
+  try{
+    await Promise.all([refresh(true), loadStats(!silent), loadSessions(), loadLogs(), (SCAN && (!silent || page==='set')) ? doScan() : null]);
+    lastAllAt=new Date().toTimeString().slice(0,8); updateRefreshTip();
+    if (silent) return;
+    // 等用量统计重新读完
+    for (let i=0; i<60 && STATS && STATS.scanning; i++) { await new Promise(r=>setTimeout(r,500)); await loadStats(); }
+    if (!offline) toast('已刷新全部数据');
+  } finally { b.classList.remove('spinning'); refreshing=false; }
+}
+$('#refreshAll').onclick=()=>refreshAll(false);
+document.addEventListener('keydown', e=>{ if (e.key==='F5') { e.preventDefault(); refreshAll(false); } });
+setAutoAll(AUTO_ALL);
+
+// ---------- 自适应缩放：小于 1280×780 时整体略微缩小（最小 85%） ----------
+const BASE_W=1280, BASE_H=780;
+let UI_SCALE=1; try{ UI_SCALE=+localStorage.getItem('uiScale2')||1; }catch(e){}
+function applyZoom(){
+  const fit=Math.max(0.85, Math.min(1, innerWidth/(BASE_W*UI_SCALE), innerHeight/(BASE_H*UI_SCALE)));
+  const z=UI_SCALE*fit;
+  const de=document.documentElement;
+  de.style.zoom=z;
+  const ew=innerWidth/z;  // 缩放后的实际排版宽度
+  [1250,1240,1100,1000,900].forEach(w=>de.classList.toggle('lt'+w, ew<=w));
+}
+addEventListener('resize', applyZoom); applyZoom();
+// ---------- 最小窗口 ----------
+const MIN_W=960, MIN_H=640; let minTimer=null;
+function enforceMin(){
+  clearTimeout(minTimer);
+  minTimer=setTimeout(()=>{ try{
+    // 最小化 / 隐藏时窗口会报告很小的尺寸，不能当成"太小"处理
+    if (document.hidden || outerWidth < 400 || outerHeight < 300) return;
+    const w=Math.max(outerWidth,MIN_W), h=Math.max(outerHeight,MIN_H);
+    if (w!==outerWidth || h!==outerHeight) resizeTo(w,h);
+  }catch(e){} }, 150);
+}
+addEventListener('resize', enforceMin); enforceMin();
+
+// ---------- 启动 ----------
+let firstLoad=true;
+async function refresh(silent){
+  try{ S=await api('state');
+    if (window.BUILD && S.build && S.build!==window.BUILD) { location.reload(); return; } window.BUILD=S.build;
+    if (firstLoad){ firstLoad=false; let m=null; try{ m=localStorage.getItem('masked'); }catch(e){} setMask(m===null ? S.settings.maskDefault!==false : m==='1'); }
+    renderAll();
+  }catch(e){ if(!silent) toast(e.message,false); }
+}
+try{ setTheme(localStorage.getItem('theme')||'dark'); }catch(e){ setTheme('dark'); }
+setAccSub('desk');
+refresh().then(()=>{ let p='dash'; try{ p=localStorage.getItem('page')||'dash'; }catch(e){} go(p); });
+// 窗口不可见（最小化 / 在后台）时暂停刷新，重新可见时立即刷新一次
+setInterval(()=>{ if(!document.hidden && !$('#loading').classList.contains('show') && !$('#modal').classList.contains('show')) refresh(true); }, 5000);
+document.addEventListener('visibilitychange', ()=>{ if(!document.hidden) { refresh(true); if(page==='dash'||page==='stats') loadStats(); } });
+setInterval(()=>{ if(!document.hidden && (page==='dash'||page==='stats')) loadStats(); }, 60000);
+</script>
+</body>
+</html>

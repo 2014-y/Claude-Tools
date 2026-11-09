@@ -1,0 +1,710 @@
+// 程序入口：托盘常驻 + 本地接口（HttpListener）+ Edge 应用模式窗口（ui.html 内嵌在 exe 中）
+using System;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.Drawing;
+using System.IO;
+using System.Linq;
+using System.Net;
+using System.Net.Sockets;
+using System.Reflection;
+using System.Text;
+using System.Threading;
+using System.Web.Script.Serialization;
+using System.Windows.Forms;
+
+namespace ClaudeSwitcher
+{
+    static class Program
+    {
+        static string Token, Url;
+        static DateTime LastPing = DateTime.MinValue;
+        static readonly JavaScriptSerializer Json = new JavaScriptSerializer { MaxJsonLength = int.MaxValue };
+        static NotifyIcon tray;
+        static SynchronizationContext ui;
+        static bool windowEverOpened;
+
+        [STAThread]
+        static void Main(string[] args)
+        {
+            bool first;
+            // 测试实例用独立的单实例锁，不影响正在运行的正式版
+            var isTest = !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("CLAUDE_SWITCHER_LOCALAPPDATA"));
+            using (var mutex = new Mutex(true, "ClaudeSwitcher_SingleInstance" + (isTest ? "_test" : ""), out first))
+            {
+                Directory.CreateDirectory(Settings.StateDir);
+                var urlFile = Path.Combine(Settings.StateDir, "url.txt");
+                bool trayOnly = args.Contains("--tray");
+                if (!first)
+                {
+                    if (!trayOnly && !FocusExisting()) try { OpenWindow(File.ReadAllText(urlFile).Trim()); SizeNewWindow(); Thread.Sleep(9000); } catch { }
+                    return;
+                }
+                try
+                {
+                    Application.EnableVisualStyles();
+                    Settings.RefreshAutoStart();
+                    StartServer(urlFile);
+                    if (Environment.GetEnvironmentVariable("CLAUDE_SWITCHER_NOBROWSER") == "1") { Thread.Sleep(Timeout.Infinite); return; }
+                    RunTray(trayOnly);
+                }
+                catch (Exception ex) { MessageBox.Show(ex.ToString(), "Claude Tools 启动失败", MessageBoxButtons.OK, MessageBoxIcon.Error); }
+            }
+        }
+
+        // ---------------- 托盘 ----------------
+        static void RunTray(bool trayOnly)
+        {
+            ui = new WindowsFormsSynchronizationContext();
+            SynchronizationContext.SetSynchronizationContext(ui);
+
+            tray = new NotifyIcon { Text = "Claude Tools", Visible = true };
+            try { tray.Icon = Icon.ExtractAssociatedIcon(Application.ExecutablePath); } catch { tray.Icon = SystemIcons.Application; }
+            var menu = new ContextMenuStrip();
+            menu.Opening += delegate { BuildMenu(menu); };
+            BuildMenu(menu);
+            tray.ContextMenuStrip = menu;
+            tray.MouseClick += (s, e) => { if (e.Button == MouseButtons.Left) ShowWindow(); };
+            tray.MouseDoubleClick += (s, e) => { if (e.Button == MouseButtons.Left) ShowWindow(); };
+
+            // 没开启托盘常驻时：窗口关掉（不再心跳）就退出
+            var timer = new System.Windows.Forms.Timer { Interval = 3000 };
+            timer.Tick += delegate
+            {
+                if (!Settings.Bool("trayMode") && windowEverOpened && (DateTime.Now - LastPing).TotalSeconds > 15) Quit();
+            };
+            timer.Start();
+
+            if (!trayOnly) ShowWindow();
+            else Balloon("Claude Tools 已在后台运行", "点击托盘图标打开控制台，右键可快速切换账号。");
+            Application.Run();
+        }
+
+        static void BuildMenu(ContextMenuStrip menu)
+        {
+            menu.Items.Clear();
+            menu.Items.Add("打开控制台", null, delegate { ShowWindow(); }).Font = new Font(menu.Font, FontStyle.Bold);
+            menu.Items.Add(new ToolStripSeparator());
+            menu.Items.Add(new ToolStripLabel("切换 Claude 桌面 App 账号") { ForeColor = Color.Gray });
+            try
+            {
+                var mask = Settings.Bool("maskDefault");
+                foreach (var p in DesktopStore.Load())
+                {
+                    var id = p.Id; var name = mask ? Mask(p.Remark) : p.Remark;
+                    var email = string.IsNullOrEmpty(p.Email) ? "" : "  (" + (mask ? Mask(p.Email) : p.Email) + ")";
+                    var item = new ToolStripMenuItem(name + email) { Checked = p.Active };
+                    item.Click += delegate { SwitchInBackground(id, p.Remark); };
+                    menu.Items.Add(item);
+                }
+            }
+            catch { }
+            menu.Items.Add(new ToolStripSeparator());
+            var auto = new ToolStripMenuItem("开机自动启动") { Checked = Settings.AutoStart };
+            auto.Click += delegate { try { Settings.Set("autoStart", !Settings.AutoStart); } catch (Exception ex) { Balloon("设置失败", ex.Message); } };
+            menu.Items.Add(auto);
+            var keep = new ToolStripMenuItem("关闭窗口后后台运行") { Checked = Settings.Bool("trayMode") };
+            keep.Click += delegate { Settings.Set("trayMode", !Settings.Bool("trayMode")); };
+            menu.Items.Add(keep);
+            menu.Items.Add(new ToolStripSeparator());
+            menu.Items.Add("退出", null, delegate { Quit(); });
+        }
+
+        static string Mask(string s)
+        {
+            return System.Text.RegularExpressions.Regex.Replace(s ?? "", @"([A-Za-z0-9._%+\-]+)@([A-Za-z0-9\-]+)((?:\.[A-Za-z0-9\-]+)+)", m =>
+            {
+                var u = m.Groups[1].Value; var h = m.Groups[2].Value;
+                var uu = u.Length <= 2 ? u.Substring(0, 1) + "*" : u.Length <= 4 ? u.Substring(0, 1) + "**" + u.Substring(u.Length - 1) : u.Substring(0, 2) + "****" + u.Substring(u.Length - 2);
+                return uu + "@" + h.Substring(0, 1) + "***" + m.Groups[3].Value;
+            });
+        }
+
+        static void SwitchInBackground(string id, string remark)
+        {
+            new Thread(() =>
+            {
+                try { DoSwitch(id); Balloon("切换成功", "Claude 桌面 App 已切换到「" + (Settings.Bool("maskDefault") ? Mask(remark) : remark) + "」"); }
+                catch (Exception ex) { Balloon("切换失败", ex.Message); }
+            }) { IsBackground = true }.Start();
+        }
+
+        static void Balloon(string title, string text)
+        {
+            if (tray == null || !Settings.Bool("notify")) return;
+            Action a = () => tray.ShowBalloonTip(3000, title, text, ToolTipIcon.Info);
+            if (ui != null) ui.Post(_ => a(), null); else a();
+        }
+
+        static DateTime lastShow = DateTime.MinValue;
+
+        // 已有窗口就切到前台；没有才新开（双击 / 连点只算一次）
+        static void ShowWindow()
+        {
+            windowEverOpened = true;
+            if (FocusExisting()) return;
+            if ((DateTime.Now - lastShow).TotalSeconds < 4) return; // 窗口正在打开
+            lastShow = DateTime.Now;
+            LastPing = DateTime.Now;
+            OpenWindow(Url);
+            SizeNewWindow();
+        }
+
+        [System.Runtime.InteropServices.DllImport("user32.dll")] static extern bool EnumWindows(EnumProc cb, IntPtr p);
+        delegate bool EnumProc(IntPtr h, IntPtr p);
+        [System.Runtime.InteropServices.DllImport("user32.dll", CharSet = System.Runtime.InteropServices.CharSet.Unicode)] static extern int GetWindowText(IntPtr h, StringBuilder sb, int n);
+        [System.Runtime.InteropServices.DllImport("user32.dll")] static extern bool IsWindowVisible(IntPtr h);
+        [System.Runtime.InteropServices.DllImport("user32.dll")] static extern bool IsIconic(IntPtr h);
+        [System.Runtime.InteropServices.DllImport("user32.dll")] static extern bool ShowWindowAsync(IntPtr h, int cmd);
+        [System.Runtime.InteropServices.DllImport("user32.dll")] static extern bool SetForegroundWindow(IntPtr h);
+        [System.Runtime.InteropServices.DllImport("user32.dll")] static extern uint GetWindowThreadProcessId(IntPtr h, out uint pid);
+        [System.Runtime.InteropServices.DllImport("user32.dll")] static extern bool AllowSetForegroundWindow(int pid);
+
+        // 找到已打开的「Claude 切号」窗口（Edge 应用窗口，标题等于页面标题）
+        static IntPtr FindAppWindow()
+        {
+            IntPtr found = IntPtr.Zero;
+            EnumWindows((h, p) =>
+            {
+                if (!IsWindowVisible(h)) return true;
+                var sb = new StringBuilder(256); GetWindowText(h, sb, 256);
+                if (sb.ToString() != "Claude Tools") return true;
+                uint pid; GetWindowThreadProcessId(h, out pid);
+                try { if (!Process.GetProcessById((int)pid).ProcessName.Equals("msedge", StringComparison.OrdinalIgnoreCase)) return true; } catch { return true; }
+                found = h; return false;
+            }, IntPtr.Zero);
+            return found;
+        }
+
+        [System.Runtime.InteropServices.DllImport("user32.dll")] static extern bool SetWindowPos(IntPtr h, IntPtr after, int x, int y, int cx, int cy, uint flags);
+
+        // 新窗口出现后，直接设成默认大小并居中（不受 Edge 记住的旧尺寸影响）
+        static void SizeNewWindow()
+        {
+            new Thread(() =>
+            {
+                for (int i = 0; i < 40; i++)
+                {
+                    Thread.Sleep(200);
+                    var h = FindAppWindow();
+                    if (h == IntPtr.Zero) continue;
+                    var wa = Screen.PrimaryScreen.WorkingArea;
+                    int w = Math.Min(1400, (int)(wa.Width * 0.88)), hh = Math.Min(900, (int)(wa.Height * 0.9));
+                    if (IsIconic(h)) ShowWindowAsync(h, 9);
+                    SetWindowPos(h, IntPtr.Zero, wa.Left + (wa.Width - w) / 2, wa.Top + (wa.Height - hh) / 2, w, hh, 0x0004 | 0x0010); // NOZORDER | NOACTIVATE
+                    return;
+                }
+            }) { IsBackground = true }.Start();
+        }
+
+        static bool FocusExisting()
+        {
+            var h = FindAppWindow();
+            if (h == IntPtr.Zero) return false;
+            if (IsIconic(h)) ShowWindowAsync(h, 9); // SW_RESTORE
+            SetForegroundWindow(h);
+            return true;
+        }
+
+        static void Quit()
+        {
+            if (tray != null) { tray.Visible = false; tray.Dispose(); }
+            Environment.Exit(0);
+        }
+
+        // ---------------- 窗口 ----------------
+        // 按系统显示缩放计算窗口的物理像素大小，避免窗口先小后大
+        static string WindowArgs()
+        {
+            double scale = 1;
+            try
+            {
+                using (var k = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(@"Control Panel\Desktop\WindowMetrics"))
+                {
+                    var v = k == null ? null : k.GetValue("AppliedDPI");
+                    if (v != null) scale = Convert.ToInt32(v) / 96.0;
+                }
+            }
+            catch { }
+            var wa = Screen.PrimaryScreen.WorkingArea;           // 本程序未声明 DPI 感知，这里是逻辑尺寸
+            int w = Math.Min(1400, (int)(wa.Width * 0.88)), h = Math.Min(900, (int)(wa.Height * 0.9));
+            int x = wa.Left + (wa.Width - w) / 2, y = wa.Top + (wa.Height - h) / 2;
+            return "--window-size=" + (int)(w * scale) + "," + (int)(h * scale) + " --window-position=" + (int)(x * scale) + "," + (int)(y * scale);
+        }
+
+        // 关闭窗口后不让 Edge 继续在后台运行
+        static void DisableEdgeBackgroundMode(string profile)
+        {
+            try
+            {
+                Directory.CreateDirectory(profile);
+                var ls = Path.Combine(profile, "Local State");
+                var json = new JavaScriptSerializer { MaxJsonLength = int.MaxValue };
+                var d = File.Exists(ls) ? json.Deserialize<Dictionary<string, object>>(File.ReadAllText(ls, Encoding.UTF8)) : new Dictionary<string, object>();
+                d["background_mode"] = new Dictionary<string, object> { { "enabled", false } };
+                File.WriteAllText(ls, json.Serialize(d), new UTF8Encoding(false));
+            }
+            catch { }
+        }
+
+        static Process OpenWindow(string url)
+        {
+            var edge = new[] {
+                Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86), @"Microsoft\Edge\Application\msedge.exe"),
+                Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), @"Microsoft\Edge\Application\msedge.exe")
+            }.FirstOrDefault(File.Exists);
+            if (edge == null) { Process.Start(url); return null; }
+            var profile = Path.Combine(Settings.StateDir, "webview");
+            var args = "--app=\"" + url + "\" --user-data-dir=\"" + profile + "\" " + WindowArgs() + " " +
+                       "--no-first-run --no-default-browser-check --lang=zh-CN " +
+                       // 精简：这个专用窗口用不到扩展、翻译、侧边栏、同步、后台联网等，关掉以省内存
+                       "--disable-extensions --disable-component-update --disable-background-networking --disable-sync --no-pings " +
+                       "--disable-default-apps --disable-breakpad --disable-crash-reporter --renderer-process-limit=2 --disable-gpu-shader-disk-cache " +
+                       // 界面很简单，用 CPU 绘制即可，省掉 GPU 进程的内存
+                       "--disable-gpu --disable-gpu-compositing " +
+                       "--disable-features=Translate,msEdgeSidebarV2,msEdgeShopping,EdgeCollections,msUndersideButton,msEdgeEnhanceImages,msImplicitSignin,AutofillServerCommunication,MediaRouter,OptimizationHints";
+            DisableEdgeBackgroundMode(profile);
+            return Process.Start(new ProcessStartInfo(edge, args) { UseShellExecute = false });
+        }
+
+        // ---------------- HTTP ----------------
+        static void StartServer(string urlFile)
+        {
+            // 固定令牌 + 优先固定端口：程序重启后，已打开的窗口能自动重新连上
+            var tokenFile = Path.Combine(Settings.StateDir, "token.txt");
+            try { Token = File.Exists(tokenFile) ? File.ReadAllText(tokenFile).Trim() : ""; } catch { Token = ""; }
+            if (Token.Length < 32) { Token = Guid.NewGuid().ToString("N"); File.WriteAllText(tokenFile, Token); }
+            HttpListener http = null; int port = 0;
+            // 测试实例（自定义数据目录）只用随机端口，不占正式端口
+            bool testInstance = !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("CLAUDE_SWITCHER_LOCALAPPDATA")) || Environment.GetEnvironmentVariable("CLAUDE_SWITCHER_TEST") == "1";
+            foreach (var p in (testInstance ? new int[0] : Enumerable.Range(38517, 10)).Concat(new[] { 0 }))
+            {
+                port = p;
+                if (p == 0) { var l = new TcpListener(IPAddress.Loopback, 0); l.Start(); port = ((IPEndPoint)l.LocalEndpoint).Port; l.Stop(); }
+                var h = new HttpListener();
+                h.Prefixes.Add("http://localhost:" + port + "/");
+                try { h.Start(); http = h; break; } catch { try { h.Close(); } catch { } }
+            }
+            if (http == null) throw new Exception("无法启动本地服务");
+            Url = "http://localhost:" + port + "/?t=" + Token;
+            File.WriteAllText(urlFile, Url);
+            new Thread(() =>
+            {
+                while (http.IsListening)
+                {
+                    HttpListenerContext ctx;
+                    try { ctx = http.GetContext(); } catch { return; }
+                    ThreadPool.QueueUserWorkItem(_ => Handle(ctx));
+                }
+            }) { IsBackground = true }.Start();
+        }
+
+        static void Handle(HttpListenerContext ctx)
+        {
+            var req = ctx.Request; var res = ctx.Response;
+            try
+            {
+                var path = req.Url.AbsolutePath;
+                if (path == "/" || path == "/index.html")
+                {
+                    if (req.QueryString["t"] != Token) { Send(res, 403, "text/plain", "forbidden"); return; }
+                    Send(res, 200, "text/html; charset=utf-8", LoadUi());
+                    return;
+                }
+                if (path == "/favicon.ico") { SendBytes(res, 200, "image/x-icon", LoadRes("app.ico")); return; }
+                if (path == "/logo.png") { SendBytes(res, 200, "image/png", LoadRes("logo.png")); return; }
+                if (!path.StartsWith("/api/") || req.Headers["X-Token"] != Token || req.HttpMethod != "POST")
+                {
+                    Send(res, 403, "text/plain", "forbidden"); return;
+                }
+                string body;
+                using (var r = new StreamReader(req.InputStream, Encoding.UTF8)) body = r.ReadToEnd();
+                var a = body.Length > 0 ? Json.Deserialize<Dictionary<string, object>>(body) : new Dictionary<string, object>();
+                object result = Api(path.Substring(5), a ?? new Dictionary<string, object>());
+                Send(res, 200, "application/json; charset=utf-8", Json.Serialize(new Dictionary<string, object> { { "ok", true }, { "data", result } }));
+            }
+            catch (Exception ex)
+            {
+                try { Send(res, 200, "application/json; charset=utf-8", Json.Serialize(new Dictionary<string, object> { { "ok", false }, { "error", ex.Message } })); } catch { }
+            }
+        }
+
+        static string S(Dictionary<string, object> a, string k)
+        {
+            object v; return a.TryGetValue(k, out v) && v != null ? v.ToString() : "";
+        }
+
+        static string DesktopName(string id)
+        {
+            var p = DesktopStore.Load().FirstOrDefault(x => x.Id == id);
+            return p == null ? id : p.Remark;
+        }
+
+        static string CliName(string id)
+        {
+            var c = Store.Load().FirstOrDefault(x => x.Folder == id);
+            return c == null ? id : c.Remark;
+        }
+
+        // 记录日志的执行包装
+        static void Logged(string action, string target, Action act, Func<string> detail = null)
+        {
+            var sw = Stopwatch.StartNew();
+            try { act(); OpLog.Add(action, target, true, detail != null ? detail() : "", sw.ElapsedMilliseconds); }
+            catch (Exception ex) { OpLog.Add(action, target, false, ex.Message, sw.ElapsedMilliseconds); throw; }
+        }
+
+        static void DoSwitch(string id)
+        {
+            var cur = DesktopStore.Load().FirstOrDefault(x => x.Active);
+            var target = DesktopName(id);
+            Logged("切换桌面账号", (cur != null ? cur.Remark : "?") + " → " + target, () => DesktopStore.SwitchTo(id), () => DesktopStore.LastSync);
+        }
+
+        static object Api(string name, Dictionary<string, object> a)
+        {
+            switch (name)
+            {
+                case "ping": LastPing = DateTime.Now; windowEverOpened = true; return File.GetLastWriteTimeUtc(Application.ExecutablePath).Ticks.ToString();
+                case "state": LastPing = DateTime.Now; windowEverOpened = true; return State();
+
+                case "desktop/switch": DoSwitch(S(a, "id")); return State();
+                case "desktop/best":
+                    {
+                        var best = BestAccount();
+                        if (best == null) throw new Exception("没有可以切换的其他账号");
+                        DoSwitch(best.Id); return State();
+                    }
+                case "desktop/add":
+                    Logged("添加桌面账号", S(a, "remark"), () => DesktopStore.AddNew(S(a, "remark")), () => DesktopStore.LastSync); return State();
+                case "desktop/rename":
+                    {
+                        var old = DesktopName(S(a, "id"));
+                        Logged("改备注", old + " → " + S(a, "remark"), () => DesktopStore.Rename(S(a, "id"), S(a, "remark"))); return State();
+                    }
+                case "desktop/delete":
+                    Logged("删除桌面账号", DesktopName(S(a, "id")), () => DesktopStore.Delete(S(a, "id"))); return State();
+                case "desktop/open": DesktopStore.OpenDir(S(a, "id")); return null;
+                case "desktop/merge":
+                    {
+                        string msg = "";
+                        Logged("合并会话记录", "所有桌面账号", () => { msg = DesktopStore.MergeAll(); }, () => msg);
+                        var st = (Dictionary<string, object>)State(); st["mergeResult"] = msg; return st;
+                    }
+                case "desktop/launch": Logged("打开桌面 App", "", DesktopStore.LaunchDesktop); return State();
+
+                case "cli/add": Logged("添加终端账号", S(a, "remark"), () => Store.Create(S(a, "remark"))); return State();
+                case "cli/rename":
+                    {
+                        var acc = Store.Load().First(x => x.Folder == S(a, "id"));
+                        if (acc.IsDefault) throw new Exception("原始账号不能改备注");
+                        Logged("改备注", acc.Remark + " → " + S(a, "remark"), () => Store.SetRemark(acc, S(a, "remark"))); return State();
+                    }
+                case "cli/delete":
+                    {
+                        var acc = Store.Load().First(x => x.Folder == S(a, "id"));
+                        Logged("删除终端账号", acc.Remark, () => Store.Delete(acc)); return State();
+                    }
+                case "cli/repair": Logged("修复共享链接", "", Store.RepairAll); return State();
+                case "cli/launch":
+                    {
+                        var mode = S(a, "mode");
+                        var label = mode == "resume" ? "（选历史）" : mode == "continue" ? "（继续上次）" : "（新对话）";
+                        Logged("启动终端", CliName(S(a, "id")) + label + " @ " + S(a, "dir"), () => CliLaunch(S(a, "id"), S(a, "dir"), mode));
+                        return State();
+                    }
+                case "pickDir": return PickDir(S(a, "start"));
+                case "cli/status": return CliStatus(true);
+                case "cli/install": Logged("安装 Claude Code", "官方安装脚本", InstallCli); return null;
+                case "openPath":
+                    {
+                        var p = S(a, "path");
+                        if (!Directory.Exists(p)) throw new Exception("目录不存在：" + p);
+                        Process.Start("explorer.exe", "\"" + p + "\""); return null;
+                    }
+
+                case "sessions": return SessionList();
+                case "stats": return TokenStats.Query(a, S);
+                case "pricing": return Pricing.All();
+                case "pricing/set":
+                    {
+                        var list = ((System.Collections.ArrayList)a["list"]).Cast<Dictionary<string, object>>().Select(d => new Price {
+                            Key = (d["Key"] ?? "").ToString().Trim(), Input = Convert.ToDouble(d["Input"]), Output = Convert.ToDouble(d["Output"]),
+                            CacheRead = Convert.ToDouble(d["CacheRead"]), CacheWrite5m = Convert.ToDouble(d["CacheWrite5m"]), CacheWrite1h = Convert.ToDouble(d["CacheWrite1h"])
+                        }).Where(p => p.Key.Length > 0).ToList();
+                        Pricing.Save(list); Logged("修改定价", list.Count + " 个模型", () => { }); return Pricing.All();
+                    }
+                case "pricing/reset": Pricing.Reset(); return Pricing.All();
+                case "storage/scan": return StorageScan.Scan();
+                case "cache/scan": return CacheCleaner.Scan();
+                case "cache/clean":
+                    {
+                        var ids = ((System.Collections.ArrayList)a["ids"]).Cast<object>().Select(o => o.ToString()).ToList();
+                        string msg = "";
+                        Logged("清理缓存", ids.Count + " 项", () => { msg = CacheCleaner.Clean(ids); }, () => msg);
+                        var r = CacheCleaner.Scan(); r["message"] = msg; return r;
+                    }
+                case "storage/clean":
+                    {
+                        long freed = 0; var id = S(a, "id");
+                        Logged("清理缓存", id == "" ? "全部已保存账号" : DesktopName(id), () => { freed = StorageScan.CleanCache(id); }, () => "释放 " + (freed / 1048576.0).ToString("0.0") + " MB");
+                        return StorageScan.Scan();
+                    }
+                case "logs": return OpLog.Read(500);
+                case "logs/clear": OpLog.Clear(); return null;
+                case "settings": return Settings.All();
+                case "settings/set": Settings.Set(S(a, "key"), a.ContainsKey("value") ? a["value"] : null); return Settings.All();
+                case "quit": new Thread(() => { Thread.Sleep(300); Quit(); }).Start(); return null;
+            }
+            throw new Exception("未知接口：" + name);
+        }
+
+        static DesktopProfile BestAccount()
+        {
+            // 7 天用量最低、其次 5 小时用量最低的非当前账号
+            return DesktopStore.Load().Where(p => !p.Active)
+                .Select(p => new { p, q = QuotaReader.Read(p.Dir) })
+                .OrderBy(x => x.q == null || x.q.SevenDay < 0 ? 999 : x.q.SevenDay)
+                .ThenBy(x => x.q == null || x.q.FiveHour < 0 ? 999 : x.q.FiveHour)
+                .Select(x => x.p).FirstOrDefault();
+        }
+
+        static object QuotaJson(Quota q)
+        {
+            if (q == null) return null;
+            return new Dictionary<string, object> {
+                { "fiveHour", q.FiveHour }, { "sevenDay", q.SevenDay }, { "t", q.T },
+                { "recent", q.Recent.Select(r => new[] { r[0], r[1], r[2] }).ToList() }
+            };
+        }
+
+        static object State()
+        {
+            var profiles = DesktopStore.Load();
+            var desktop = profiles.Select(p => new Dictionary<string, object> {
+                { "id", p.Id }, { "remark", p.Remark }, { "email", p.Email ?? "" }, { "active", p.Active },
+                { "lastUsed", p.LastUsed.ToString("yyyy/MM/dd HH:mm") }, { "sessions", p.Sessions }, { "dir", p.Dir }, { "loggedIn", p.LoggedIn },
+                { "quota", QuotaJson(QuotaReader.Read(p.Dir)) }
+            }).ToList();
+            var cli = Store.Load().Select(c => new Dictionary<string, object> {
+                { "id", c.Folder }, { "remark", c.Remark }, { "email", c.Email ?? "" }, { "loggedIn", c.LoggedIn },
+                { "isDefault", c.IsDefault }, { "dir", c.Dir }
+            }).ToList();
+            var best = BestAccount();
+            return new Dictionary<string, object> {
+                { "desktop", desktop }, { "desktopRunning", DesktopStore.IsRunning() },
+                { "cli", cli }, { "recent", ProjectDirs() }, { "cliStatus", CliStatus(false) },
+                { "best", best == null ? null : best.Id },
+                { "switchesToday", OpLog.CountToday("切换桌面账号") },
+                { "settings", Settings.All() }, { "lastSync", DesktopStore.LastSync }, { "build", File.GetLastWriteTimeUtc(Application.ExecutablePath).Ticks.ToString() }, { "now", (long)(DateTime.UtcNow - new DateTime(1970, 1, 1)).TotalMilliseconds }
+            };
+        }
+
+        static object SessionList()
+        {
+            return Sessions.All().Take(1000).Select(s => new Dictionary<string, object> {
+                { "id", s.Id }, { "cli", s.CliId ?? "" }, { "title", s.Title ?? "" }, { "model", s.Model ?? "" },
+                { "cwd", s.Cwd ?? "" }, { "account", s.Account ?? "" }, { "profile", s.Profile ?? "" },
+                { "created", s.Created }, { "last", s.LastActivity }, { "archived", s.Archived }
+            }).ToList();
+        }
+
+        // ---------- Claude Code（claude 命令）检测与安装 ----------
+        static string cliPath; static string cliVersion = ""; static DateTime cliChecked = DateTime.MinValue;
+        static readonly object CliLock = new object();
+
+        static string FindClaude()
+        {
+            var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+            var cands = new List<string> { Path.Combine(home, @".local\bin\claude.exe") };
+            // 同时读取最新的用户 / 系统 PATH（刚安装完时本进程的环境变量还是旧的）
+            var paths = string.Join(";", new[] {
+                Environment.GetEnvironmentVariable("PATH"),
+                Environment.GetEnvironmentVariable("PATH", EnvironmentVariableTarget.User),
+                Environment.GetEnvironmentVariable("PATH", EnvironmentVariableTarget.Machine) });
+            foreach (var p in paths.Split(';'))
+            {
+                var d = p.Trim().Trim('"'); if (d.Length == 0) continue;
+                foreach (var n in new[] { "claude.exe", "claude.cmd" }) cands.Add(Path.Combine(d, n));
+            }
+            return cands.FirstOrDefault(c => { try { return File.Exists(c); } catch { return false; } });
+        }
+
+        static Dictionary<string, object> CliStatus(bool force)
+        {
+            lock (CliLock)
+            {
+                if (force || (DateTime.Now - cliChecked).TotalSeconds > 30)
+                {
+                    var p = FindClaude();
+                    if (p != cliPath || force)
+                    {
+                        cliVersion = "";
+                        if (p != null)
+                            try
+                            {
+                                var psi = new ProcessStartInfo(p, "--version") { UseShellExecute = false, RedirectStandardOutput = true, CreateNoWindow = true };
+                                using (var pr = Process.Start(psi)) { var o = pr.StandardOutput.ReadToEnd(); pr.WaitForExit(8000); cliVersion = o.Trim(); }
+                            }
+                            catch { }
+                    }
+                    cliPath = p; cliChecked = DateTime.Now;
+                }
+                return new Dictionary<string, object> { { "installed", cliPath != null }, { "path", cliPath ?? "" }, { "version", cliVersion } };
+            }
+        }
+
+        // 打开一个 PowerShell 窗口运行官方安装命令，过程对用户可见
+        static void InstallCli()
+        {
+            var cmd = "$host.UI.RawUI.WindowTitle='安装 Claude Code'; Write-Host '正在安装 Claude Code（官方安装脚本 https://claude.ai/install.ps1）...' -ForegroundColor Cyan; " +
+                      "irm https://claude.ai/install.ps1 | iex; Write-Host ''; Write-Host '安装结束。回到 Claude Tools 点「重新检测」即可使用。' -ForegroundColor Green";
+            Process.Start(new ProcessStartInfo("powershell.exe", "-NoExit -NoProfile -ExecutionPolicy Bypass -Command \"" + cmd.Replace("\"", "\\\"") + "\"") { UseShellExecute = true });
+        }
+
+        static void CliLaunch(string id, string dir, string mode)
+        {
+            var acc = Store.Load().FirstOrDefault(x => x.Folder == id);
+            if (acc == null) throw new Exception("找不到这个账号");
+            dir = (dir ?? "").Trim().Trim('"');
+            if (dir.Length == 0 || !Directory.Exists(dir)) throw new Exception("请先选择一个存在的项目文件夹");
+            var extra = mode == "resume" ? " --resume" : mode == "continue" ? " --continue" : "";
+            var title = ("Claude - " + acc.Remark).Replace("&", "").Replace("|", "").Replace("^", "");
+            var st = CliStatus(false);
+            if (!(bool)st["installed"]) st = CliStatus(true);
+            if (!(bool)st["installed"]) throw new Exception("这台电脑还没有安装 Claude Code（claude 命令），请先点「一键安装」");
+            var exe = "\"" + (string)st["path"] + "\"";
+            var psi = new ProcessStartInfo("cmd.exe", "/k title " + title + " && " + exe + extra) { UseShellExecute = false, WorkingDirectory = dir };
+            if (acc.IsDefault) psi.EnvironmentVariables.Remove("CLAUDE_CONFIG_DIR");
+            else psi.EnvironmentVariables["CLAUDE_CONFIG_DIR"] = acc.Dir;
+            Process.Start(psi);
+            Store.SaveRecent(dir);
+        }
+
+        // 新版文件夹选择框（IFileOpenDialog + FOS_PICKFOLDERS），可粘贴路径，始终在最前
+        [System.Runtime.InteropServices.ComImport, System.Runtime.InteropServices.Guid("DC1C5A9C-E88A-4dde-A5A1-60F82A20AEF7")] class FileOpenDialogRCW { }
+        [System.Runtime.InteropServices.ComImport, System.Runtime.InteropServices.Guid("42f85136-db7e-439c-85f1-e4075d135fc8"), System.Runtime.InteropServices.InterfaceType(System.Runtime.InteropServices.ComInterfaceType.InterfaceIsIUnknown)]
+        interface IFileDialog
+        {
+            [System.Runtime.InteropServices.PreserveSig] int Show(IntPtr parent);
+            void SetFileTypes(uint c, IntPtr f); void SetFileTypeIndex(uint i); void GetFileTypeIndex(out uint i);
+            void Advise(IntPtr p, out uint c); void Unadvise(uint c); void SetOptions(uint fos); void GetOptions(out uint fos);
+            void SetDefaultFolder(IShellItem si); void SetFolder(IShellItem si); void GetFolder(out IShellItem si); void GetCurrentSelection(out IShellItem si);
+            void SetFileName([System.Runtime.InteropServices.MarshalAs(System.Runtime.InteropServices.UnmanagedType.LPWStr)] string n); void GetFileName(out IntPtr n);
+            void SetTitle([System.Runtime.InteropServices.MarshalAs(System.Runtime.InteropServices.UnmanagedType.LPWStr)] string t);
+            void SetOkButtonLabel([System.Runtime.InteropServices.MarshalAs(System.Runtime.InteropServices.UnmanagedType.LPWStr)] string t);
+            void SetFileNameLabel([System.Runtime.InteropServices.MarshalAs(System.Runtime.InteropServices.UnmanagedType.LPWStr)] string t);
+            void GetResult(out IShellItem si);
+        }
+        [System.Runtime.InteropServices.ComImport, System.Runtime.InteropServices.Guid("43826D1E-E718-42EE-BC55-A1E261C37BFE"), System.Runtime.InteropServices.InterfaceType(System.Runtime.InteropServices.ComInterfaceType.InterfaceIsIUnknown)]
+        interface IShellItem
+        {
+            void BindToHandler(IntPtr pbc, ref Guid bhid, ref Guid riid, out IntPtr ppv); void GetParent(out IShellItem si);
+            void GetDisplayName(uint sigdn, out IntPtr name); void GetAttributes(uint mask, out uint attrs); void Compare(IShellItem si, uint hint, out int order);
+        }
+        [System.Runtime.InteropServices.DllImport("shell32.dll", CharSet = System.Runtime.InteropServices.CharSet.Unicode, PreserveSig = false)]
+        static extern void SHCreateItemFromParsingName(string path, IntPtr pbc, ref Guid riid, out IShellItem item);
+
+        [System.Runtime.InteropServices.DllImport("user32.dll")] static extern void keybd_event(byte vk, byte scan, uint flags, UIntPtr extra);
+        // 由后台进程弹出的窗口默认拿不到焦点；模拟一次 Alt 键解除系统的前台锁定
+        static void ForceForeground(IntPtr h)
+        {
+            keybd_event(0x12, 0, 0, UIntPtr.Zero); keybd_event(0x12, 0, 2, UIntPtr.Zero);
+            SetForegroundWindow(h);
+        }
+
+        static string PickDir(string start)
+        {
+            string result = "";
+            var t = new Thread(() =>
+            {
+                using (var owner = new Form { TopMost = true, ShowInTaskbar = false, Width = 1, Height = 1, FormBorderStyle = FormBorderStyle.None, StartPosition = FormStartPosition.CenterScreen, Opacity = 0 })
+                {
+                    owner.Show(); ForceForeground(owner.Handle);
+                    try
+                    {
+                        var dlg = (IFileDialog)new FileOpenDialogRCW();
+                        uint opts; dlg.GetOptions(out opts);
+                        dlg.SetOptions(opts | 0x20 | 0x40); // FOS_PICKFOLDERS | FOS_FORCEFILESYSTEM
+                        dlg.SetTitle("选择项目文件夹");
+                        dlg.SetOkButtonLabel("选择此文件夹");
+                        if (!string.IsNullOrEmpty(start) && Directory.Exists(start))
+                        {
+                            var iid = new Guid("43826D1E-E718-42EE-BC55-A1E261C37BFE"); IShellItem si;
+                            try { SHCreateItemFromParsingName(start, IntPtr.Zero, ref iid, out si); dlg.SetFolder(si); } catch { }
+                        }
+                        if (dlg.Show(owner.Handle) == 0)
+                        {
+                            IShellItem item; dlg.GetResult(out item);
+                            IntPtr p; item.GetDisplayName(0x80058000, out p); // SIGDN_FILESYSPATH
+                            result = System.Runtime.InteropServices.Marshal.PtrToStringUni(p);
+                            System.Runtime.InteropServices.Marshal.FreeCoTaskMem(p);
+                        }
+                    }
+                    catch
+                    {
+                        using (var old = new FolderBrowserDialog { Description = "选择项目文件夹", ShowNewFolderButton = true })
+                        {
+                            if (Directory.Exists(start)) old.SelectedPath = start;
+                            if (old.ShowDialog(owner) == DialogResult.OK) result = old.SelectedPath;
+                        }
+                    }
+                }
+            });
+            t.SetApartmentState(ApartmentState.STA);
+            t.Start(); t.Join();
+            return result;
+        }
+
+        // 常用项目文件夹：最近启动过的 + 桌面 App 会话里用过的（不含临时会话）
+        static List<string> ProjectDirs()
+        {
+            var list = new List<string>(Store.LoadRecent());
+            try
+            {
+                foreach (var s in Sessions.All())
+                {
+                    var c = s.Cwd ?? "";
+                    if (c.Length == 0 || c.IndexOf("\\scratch-workspaces\\", StringComparison.OrdinalIgnoreCase) >= 0) continue;
+                    if (list.Any(x => string.Equals(x, c, StringComparison.OrdinalIgnoreCase))) continue;
+                    if (Directory.Exists(c)) list.Add(c);
+                }
+            }
+            catch { }
+            return list.Take(12).ToList();
+        }
+        // ---------------- 资源 ----------------
+        static string uiCache;
+        static string LoadUi()
+        {
+            var dev = Environment.GetEnvironmentVariable("CLAUDE_SWITCHER_UI");
+            if (!string.IsNullOrEmpty(dev) && File.Exists(dev)) return File.ReadAllText(dev, Encoding.UTF8);
+            if (uiCache != null) return uiCache;
+            using (var s = Assembly.GetExecutingAssembly().GetManifestResourceStream("ui.html"))
+            using (var r = new StreamReader(s, Encoding.UTF8)) return uiCache = r.ReadToEnd();
+        }
+
+        static byte[] LoadRes(string name)
+        {
+            using (var s = Assembly.GetExecutingAssembly().GetManifestResourceStream(name))
+            {
+                if (s == null) return new byte[0];
+                var ms = new MemoryStream(); s.CopyTo(ms); return ms.ToArray();
+            }
+        }
+
+        static void Send(HttpListenerResponse res, int code, string type, string text)
+        {
+            SendBytes(res, code, type, Encoding.UTF8.GetBytes(text));
+        }
+
+        static void SendBytes(HttpListenerResponse res, int code, string type, byte[] data)
+        {
+            res.StatusCode = code; res.ContentType = type;
+            res.Headers["Cache-Control"] = "no-store";
+            res.ContentLength64 = data.Length;
+            res.OutputStream.Write(data, 0, data.Length);
+            res.OutputStream.Close();
+        }
+    }
+}

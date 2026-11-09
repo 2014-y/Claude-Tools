@@ -1,0 +1,12 @@
+# 编译产物（通过 Releases 发布）
+*.exe
+*.pdb
+# 构建时生成的图标（由 src/build.ps1 生成）
+src/app.ico
+src/icon-256.png
+# 旧版命令行脚本（已被 Claude Tools 取代）
+claude-accounts.ps1
+启动.bat
+# 系统文件
+Thumbs.db
+desktop.ini
