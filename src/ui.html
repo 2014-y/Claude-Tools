@@ -152,6 +152,8 @@ svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:2;stroke-l
 .curRow{display:flex;align-items:center;gap:24px;padding:6px 0}
 .qbar{display:grid;grid-template-columns:72px 1fr 52px;align-items:center;gap:10px;font-size:14px;color:var(--muted)}
 .qbar b{text-align:right;color:var(--text);font-size:14px}
+.setwr{color:var(--primary);cursor:pointer;text-decoration:underline dotted}
+.rline[data-wr]{cursor:pointer}
 .rline{grid-column:2 / 4;font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:-6px}
 .rs b{font-family:"Cascadia Mono",Consolas,monospace;color:var(--gold);font-weight:700}
 .qbar .track{height:10px}
@@ -568,8 +570,14 @@ function fmt(n){ n=+n||0; if (n>=1e9) return (n/1e9).toFixed(2)+'B'; if (n>=1e6)
 function ago(ms){ if(!ms) return '-'; const s=(Date.now()-ms)/1000; if(s<60) return '刚刚'; if(s<3600) return Math.floor(s/60)+' 分钟前'; if(s<86400) return Math.floor(s/3600)+' 小时前'; return Math.floor(s/86400)+' 天前'; }
 function dt(ms){ if(!ms) return ['-','']; const d=new Date(ms), p=n=>String(n).padStart(2,'0'); return [`${d.getFullYear()}/${p(d.getMonth()+1)}/${p(d.getDate())}`, `${p(d.getHours())}:${p(d.getMinutes())}`]; }
 const lvl = left => left == null ? 'na' : left < 20 ? 'bad' : left < 50 ? 'warn' : '';
-function remain(q){
+// 每周重置时间（手动设置）：{ 账号id: '星期几(0=日)|HH:MM' }
+function WR(){ try{ return JSON.parse((S.settings&&S.settings.weeklyResets)||'{}')||{}; }catch(e){ return {}; } }
+function weeklyNext(spec){ const m=/^(\d)\|(\d{1,2}):(\d{2})$/.exec(spec||''); if(!m) return 0; const now=new Date(), d=new Date(now);
+  d.setHours(+m[2],+m[3],0,0); d.setDate(d.getDate()+((+m[1]-d.getDay()+7)%7)); if (d<=now) d.setDate(d.getDate()+7); return d.getTime(); }
+function remain(q, id){
   if (!q) return {h5:null, d7:null, t:0};
+  const manual = id ? weeklyNext(WR()[id]) : 0;
+  if (manual) { q = Object.assign({}, q, {sevenReset: manual}); if (q.t < manual - 7*86400e3) q.sevenDay = 0; }
   const age = Date.now() - q.t;
   const now = Date.now();
   const r5 = q.fiveReset && q.fiveReset > now ? q.fiveReset : 0, r7 = q.sevenReset && q.sevenReset > now ? q.sevenReset : 0;
@@ -585,7 +593,7 @@ function countdown(ms){ let s=Math.max(0,Math.floor((ms-Date.now())/1000)); cons
   return d>0 ? d+'天'+h+'时' : h+':'+p(m)+':'+p(x); }
 const resetHtml = ms => ms ? `<span class="rs" title="根据用量记录推算，可能比实际晚十几分钟">约 ${resetAt(ms)} 重置 · <b data-cd="${ms}">${countdown(ms)}</b></span>` : '';
 setInterval(()=>{ document.querySelectorAll('[data-cd]').forEach(e=>{ const ms=+e.dataset.cd; if (ms<=Date.now()) { e.textContent='已重置'; } else e.textContent=countdown(ms); }); }, 1000);
-const qbar = (label, left, reset) => `<div class="qbar"><span>${label}</span><div class="track"><i class="${lvl(left)}" style="width:${left??0}%"></i></div><b class="num">${pctTxt(left)}</b>${reset?`<div class="rline">${resetHtml(reset)}</div>`:''}</div>`;
+const qbar = (label, left, reset, pid) => `<div class="qbar"><span>${label}</span><div class="track"><i class="${lvl(left)}" style="width:${left??0}%"></i></div><b class="num">${pctTxt(left)}</b>${reset?`<div class="rline"${pid?` data-wr="${esc(pid)}" title="点击设置每周重置时间"`:''}>${reset==='set'?'<span class="setwr">设置每周重置时间（照桌面 App「套餐使用限额」填写）</span>':resetHtml(reset)}${pid&&reset!=='set'?' <span class="setwr">修改</span>':''}</div>`:''}</div>`;
 
 let offline=false;
 function setOffline(v){ if (offline===v) return; offline=v; $('#offline').classList.toggle('show', v); }
@@ -649,13 +657,13 @@ function renderDash(){
   const name=(S.settings&&S.settings.userName)||(cur?cur.remark:'');
   $('#hello').textContent = M('你好' + (name ? '，' + name : '')) + ' 👋';
   $('#k1').textContent=n; $('#k2').textContent=S.cli.length; $('#k3').textContent=S.switchesToday??0;
-  const withQ=S.desktop.filter(p=>remain(p.quota).d7!=null), healthy=withQ.filter(p=>remain(p.quota).d7>=20).length;
+  const withQ=S.desktop.filter(p=>remain(p.quota,p.id).d7!=null), healthy=withQ.filter(p=>remain(p.quota,p.id).d7>=20).length;
   $('#d1big').innerHTML = `${n}<small>个桌面账号</small>`;
   $('#d1tag').textContent = `${healthy}/${withQ.length} 有余量`;
   $('#d1sub').textContent = `✓ ${S.cli.length} 个终端账号 · 今日切换 ${S.switchesToday??0} 次`;
   $('#d1bar').style.width = (withQ.length? healthy/withQ.length*100 : 0)+'%';
   $('#d1foot').textContent = S.desktopRunning ? '桌面 App 运行中' : '桌面 App 未运行';
-  const r=remain(cur&&cur.quota);
+  const r=remain(cur&&cur.quota,cur&&cur.id);
   const setQ=(big,bar,tag,foot,v)=>{
     $(big).innerHTML = v==null ? '--' : `${v}<small>%</small>`;
     if (bar) { $(bar).style.width=(v??0)+'%'; $(bar).className=lvl(v); }
@@ -672,7 +680,7 @@ function renderDash(){
   const low = Math.min(r.h5??100, r.d7??100);
   $('#d2tip').textContent = r.h5==null ? '暂无数据' : low<20 ? '建议切换账号' : low<50 ? '适度使用' : '放心使用';
   $('#d2tip').style.color = r.h5==null ? '' : low<20 ? 'var(--red)' : low<50 ? 'var(--yellow)' : 'var(--green)';
-  const ranked=S.desktop.map(p=>({id:p.id, d7:remain(p.quota).d7})).filter(x=>x.d7!=null).sort((a,b)=>b.d7-a.d7);
+  const ranked=S.desktop.map(p=>({id:p.id, d7:remain(p.quota,p.id).d7})).filter(x=>x.d7!=null).sort((a,b)=>b.d7-a.d7);
   const pos=cur ? ranked.findIndex(x=>x.id===cur.id) : -1;
   $('#d3rank').textContent = pos<0 ? '--' : '第 '+(pos+1)+' / '+ranked.length;
   const rec=(cur&&cur.quota&&cur.quota.recent)||[];
@@ -689,7 +697,7 @@ function renderDash(){
       <div class="tags">${cur.email?`<span class="tag gold">${esc(M(cur.email))}</span>`:''}<span class="tag cream">${cur.sessions} 条会话</span></div></div></div>
       <div class="qbars" style="flex:0 1 300px;min-width:0;margin-left:auto">${qbar('5H 余量',r.h5)}${qbar('7天 余量',r.d7)}</div></div>`;
   } else $('#curBox').innerHTML='<div class="sub">还没有桌面账号</div>';
-  const rows=S.desktop.map(p=>({p, r:remain(p.quota)})).sort((a,b)=>(b.r.d7??-1)-(a.r.d7??-1)||(b.r.h5??-1)-(a.r.h5??-1));
+  const rows=S.desktop.map(p=>({p, r:remain(p.quota,p.id)})).sort((a,b)=>(b.r.d7??-1)-(a.r.d7??-1)||(b.r.h5??-1)-(a.r.h5??-1));
   $('#rankBox').innerHTML = rows.slice(0,4).map(({p,r})=>`<div class="rec ${p.id===S.best?'best':''}">
       ${avatar(p.email||p.id,p.remark)}<div class="t"><div>${esc(M(p.remark))} ${p.active?'<span class="tag main">当前</span>':''}${p.id===S.best?'<span class="tag gold">推荐</span>':''}</div>
       <div class="sub">5H 余量 ${pctTxt(r.h5)} · 7 天余量 ${pctTxt(r.d7)}</div></div>
@@ -700,7 +708,7 @@ function renderDash(){
 
 // 账号状态：正常 / 异常（未登录、额度用尽）
 function health(p){
-  const r=remain(p.quota), why=[];
+  const r=remain(p.quota,p.id), why=[];
   if (!p.loggedIn) why.push('未登录或登录信息已失效');
   if (r.h5!=null && r.h5<=0) why.push('5 小时额度已用完');
   if (r.d7!=null && r.d7<=0) why.push('7 天额度已用完');
@@ -715,12 +723,12 @@ function renderDesk(){
   const list=S.desktop.filter(p=>!q||(p.remark+' '+p.email).toLowerCase().includes(q));
   if (!list.length){ $('#dlist').innerHTML=`<div class="empty"><div class="bigt">${S.desktop.length?'没有匹配的账号':'还没有账号'}</div>点「添加账号」会打开 Claude 官方登录页</div>`; return; }
   $('#dlist').innerHTML = list.map(p=>{
-    const [d,t]=(p.lastUsed||'').split(' '), r=remain(p.quota);
+    const [d,t]=(p.lastUsed||'').split(' '), r=remain(p.quota,p.id);
     return `<div class="tr g-desk ${p.active?'cur':''}" data-id="${esc(p.id)}">
       <div class="who">${avatar(p.email||p.id,p.remark)}<div style="min-width:0"><div class="name">${esc(M(p.remark))}</div>
         <div class="tags">${healthTag(p)}
         ${p.email?`<span class="tag gold">${esc(M(p.email))}</span>`:'<span class="tag gray">未识别邮箱</span>'}</div></div></div>
-      <div class="qbars rq" title="${r.t?'配额记录于 '+ago(r.t):'暂无配额记录'}">${qbar('5H 余量',r.h5,r.r5)}${qbar('7天 余量',r.d7,r.r7)}</div>
+      <div class="qbars rq" title="${r.t?'配额记录于 '+ago(r.t):'暂无配额记录'}">${qbar('5H 余量',r.h5,r.r5)}${qbar('7天 余量',r.d7,r.r7||'set',p.id)}</div>
       <div class="time">${esc(d||'-')}<small>${esc(t||'')}</small></div>
       <div class="ops">${p.active
           ? `<button class="btn sm" data-a="launch" ${S.desktopRunning?'disabled':''}>${ico('launch')}${S.desktopRunning?'使用中':'打开 App'}</button>`
@@ -1072,6 +1080,19 @@ $('#ccClean').onclick=async()=>{
   loading(true,'正在清理缓存…');
   try{ CC=await api('cache/clean',{ids}); renderCC(); toast(CC.message||'清理完成'); }catch(e){ toast(e.message,false); } finally{ loading(false); }
 };
+
+document.addEventListener('click', async e=>{
+  const el=e.target.closest('[data-wr]'); if(!el) return;
+  const id=el.dataset.wr, cur=WR()[id]||'', days='日一二三四五六';
+  const def=cur ? '周'+days[+cur[0]]+' '+cur.split('|')[1] : '周五 07:00';
+  const v=await dialog({title:'设置每周重置时间', text:'照 Claude 桌面 App 左下角「套餐使用限额 → 每周 · 所有模型」里显示的时间填写，例如：周五 07:00。\n留空表示清除。', input:def, okText:'保存'});
+  if (v===null) return;
+  const map=WR();
+  if (!v.trim()) delete map[id];
+  else { const m=/周\s*([一二三四五六日天])\s*(\d{1,2})[:：](\d{2})/.exec(v); if(!m){ toast('格式不对，请填写类似「周五 07:00」',false); return; }
+    map[id]=('日一二三四五六'.indexOf(m[1]==='天'?'日':m[1]))+'|'+String(+m[2]).padStart(2,'0')+':'+m[3]; }
+  try{ S.settings=await api('settings/set',{key:'weeklyResets',value:JSON.stringify(map)}); renderAll(); toast('已保存每周重置时间'); }catch(x){ toast(x.message,false); }
+});
 
 // ---------- 账号操作 ----------
 const switchMsg = name => d => '已切换到「'+name+'」' + (d && d.lastSync ? '\n' + d.lastSync : '');

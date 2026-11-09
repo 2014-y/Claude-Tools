@@ -32,7 +32,8 @@ namespace ClaudeSwitcher
             { "notify", true },            // 托盘气泡通知
             { "syncSessions", true },      // 切换时把上一个账号的会话记录带到新账号
             { "syncClientSettings", true }, // 切换时把客户端设置（字号、主题、窗口布局等）带到新账号
-            { "userName", "" }
+            { "userName", "" },
+            { "weeklyResets", "" }        // 手动设置的每周重置时间，JSON：{ 账号id: "5|07:00" }
         };
 
         static Dictionary<string, object> Data
@@ -201,10 +202,25 @@ namespace ClaudeSwitcher
                     int n = mine.Count; if (n == 0 || v(n - 1) <= 0) return 0;
                     int k = n - 1;
                     while (k > 0 && v(k - 1) > 0 && v(k - 1) <= v(k) + 2 && mine[k].t - mine[k - 1].t < window) k--;
-                    return mine[k].t + window;
+                    // 窗口开始时间：取上一条 0% 记录（若在 30 分钟内），向下取整到半点
+                    long start = (k > 0 && v(k - 1) == 0 && mine[k].t - mine[k - 1].t <= 30 * 60000L) ? mine[k - 1].t : mine[k].t;
+                    start -= start % (30 * 60000L);
+                    return start + window;
                 };
                 q.FiveReset = est("fh", 5L * 3600 * 1000);
-                q.SevenReset = est("sd", 7L * 24 * 3600 * 1000);
+                // 每周额度是固定时间重置：只有记录到清零的那一刻才能确定，记不到就交给界面让用户设置
+                q.SevenReset = 0;
+                for (int i = mine.Count - 1; i > 0; i--)
+                {
+                    int a0 = mine[i - 1].u.ContainsKey("sd") && mine[i - 1].u["sd"] != null ? Convert.ToInt32(mine[i - 1].u["sd"]) : 0;
+                    int b0 = mine[i].u.ContainsKey("sd") && mine[i].u["sd"] != null ? Convert.ToInt32(mine[i].u["sd"]) : 0;
+                    if (a0 - b0 >= 5 && b0 <= 2)
+                    {
+                        long anchor = mine[i].t - mine[i].t % (3600000L), week = 7L * 24 * 3600000, nowMs = (long)(DateTime.UtcNow - new DateTime(1970, 1, 1)).TotalMilliseconds;
+                        while (anchor <= nowMs) anchor += week;
+                        q.SevenReset = anchor; break;
+                    }
+                }
                 long from = last.t - 7L * 24 * 3600 * 1000;
                 long bucket = -1;
                 foreach (var s in samples.Where(s => s.org == last.org && s.t >= from))
