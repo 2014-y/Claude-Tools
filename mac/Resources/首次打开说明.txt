@@ -1,0 +1,24 @@
+Claude Tools for Mac · 首次打开说明
+====================================
+
+1. 把「Claude Tools」拖到旁边的「应用程序」文件夹。
+
+2. 第一次打开：
+   这个 App 没有苹果开发者证书签名，直接双击会提示「无法验证开发者」。
+   · macOS 14 及更早：在「应用程序」里右键（或按住 Control 点按）Claude Tools →「打开」→ 再点「打开」。
+   · macOS 15 及以后：先双击一次（会被拦下），然后打开「系统设置 → 隐私与安全性」，
+     在页面下方找到「已阻止打开 Claude Tools」，点「仍要打开」，输入开机密码确认。
+   · 如果提示「已损坏，无法打开」，在「终端」里运行下面这行后再打开：
+       xattr -dr com.apple.quarantine "/Applications/Claude Tools.app"
+   只需要做一次，以后正常双击即可。
+
+3. 查询官方额度时会弹出钥匙串提示：
+   「Claude Tools 想要使用钥匙串中的机密信息 Claude Safe Storage」
+   输入开机密码，点「始终允许」。这是用来解开 Claude 桌面 App 在本机保存的登录信息，
+   只读地查询官方额度，不会修改、续期或上传你的登录信息。
+   （以后升级 Claude Tools 后可能需要再点一次「始终允许」。）
+
+4. Claude Tools 常驻在屏幕顶部的菜单栏（像素小怪物图标），关掉窗口不会退出；
+   点菜单栏图标可以打开窗口、快速切换账号或退出。
+
+非官方工具，与 Anthropic 无关。源码：https://github.com/2014-y/Claude-Tools

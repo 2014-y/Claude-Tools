@@ -1,0 +1,69 @@
+name: macOS 版
+
+on:
+  push:
+    branches: [main, mac-build]
+    paths:
+      - 'mac/**'
+      - 'src/ui.html'
+      - 'src/fonts/**'
+      - 'docs/logo.png'
+      - '.github/workflows/mac.yml'
+  workflow_dispatch:
+
+jobs:
+  build-test:
+    runs-on: macos-14
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 环境
+        run: |
+          sw_vers
+          swiftc --version
+          python3 --version
+
+      - name: 编译通用二进制并打包 dmg
+        run: bash mac/build.sh
+
+      - name: 检查产物
+        run: |
+          APP="mac/build/Claude Tools.app"
+          lipo -archs "$APP/Contents/MacOS/ClaudeTools"
+          lipo -archs "$APP/Contents/MacOS/ClaudeTools" | grep -q "x86_64 arm64"
+          plutil -lint "$APP/Contents/Info.plist"
+          ls -la "$APP/Contents/Resources"
+          hdiutil verify mac/build/Claude-Tools-mac.dmg
+          ls -la mac/build/Claude-Tools-mac.dmg
+
+      - name: 自动测试（接口与数据）
+        run: python3 mac/tests/run_tests.py "mac/build/Claude Tools.app" mac/build/test-logs
+
+      - name: 界面截图
+        if: always()
+        run: python3 mac/tests/screenshots.py "mac/build/Claude Tools.app" mac/build/shots
+
+      - name: 上传 dmg
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Claude-Tools-mac
+          path: mac/build/Claude-Tools-mac.dmg
+          if-no-files-found: ignore
+
+      - name: 上传截图
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: screenshots
+          path: mac/build/shots
+          if-no-files-found: ignore
+
+      - name: 上传测试日志
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-logs
+          path: mac/build/test-logs
+          if-no-files-found: ignore

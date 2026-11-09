@@ -10,3 +10,5 @@ claude-accounts.ps1
 # 系统文件
 Thumbs.db
 desktop.ini
+# macOS 版编译产物
+mac/build/
