@@ -123,6 +123,8 @@ namespace ClaudeSwitcher
             timer.Tick += delegate
             {
                 if (!Settings.Bool("trayMode") && windowEverOpened && (DateTime.Now - LastPing).TotalSeconds > 15) Quit();
+                // 后台常驻时，窗口关掉后在后台预先准备好一个隐藏窗口，点托盘图标直接显示，不闪烁也不重新加载
+                if (Settings.Bool("trayMode")) PrepareStandby();
             };
             timer.Start();
 
@@ -189,10 +191,13 @@ namespace ClaudeSwitcher
 
         static DateTime lastShow = DateTime.MinValue;
 
-        // 已有窗口就切到前台；没有才新开（双击 / 连点只算一次）
+        // 已有窗口（包括后台预备好的隐藏窗口）就直接显示；没有才新开（双击 / 连点只算一次）
         static void ShowWindow()
         {
             windowEverOpened = true;
+            if (FocusExisting()) return;
+            // 隐藏窗口正在准备中：稍等它就绪再显示，避免再开一个
+            for (int i = 0; i < 25 && preparing; i++) { Application.DoEvents(); Thread.Sleep(120); }
             if (FocusExisting()) return;
             if ((DateTime.Now - lastShow).TotalSeconds < 4) return; // 窗口正在打开
             lastShow = DateTime.Now;
@@ -211,13 +216,13 @@ namespace ClaudeSwitcher
         [System.Runtime.InteropServices.DllImport("user32.dll")] static extern uint GetWindowThreadProcessId(IntPtr h, out uint pid);
         [System.Runtime.InteropServices.DllImport("user32.dll")] static extern bool AllowSetForegroundWindow(int pid);
 
-        // 找到已打开的「Claude 切号」窗口（Edge 应用窗口，标题等于页面标题）
-        static IntPtr FindAppWindow()
+        // 找到已打开的 Claude Tools 窗口（Edge 应用窗口，标题等于页面标题）；includeHidden 时包括后台预备的隐藏窗口
+        static IntPtr FindAppWindow(bool includeHidden = false)
         {
             IntPtr found = IntPtr.Zero;
             EnumWindows((h, p) =>
             {
-                if (!IsWindowVisible(h)) return true;
+                if (!includeHidden && !IsWindowVisible(h)) return true;
                 var sb = new StringBuilder(256); GetWindowText(h, sb, 256);
                 if (sb.ToString() != "Claude Tools") return true;
                 uint pid; GetWindowThreadProcessId(h, out pid);
@@ -250,11 +255,86 @@ namespace ClaudeSwitcher
 
         static bool FocusExisting()
         {
-            var h = FindAppWindow();
+            var h = FindAppWindow(true);
             if (h == IntPtr.Zero) return false;
+            if (!IsWindowVisible(h))
+            {
+                // 后台预备的隐藏窗口：放到屏幕中间再显示
+                var wa = Screen.PrimaryScreen.WorkingArea;
+                int w = Math.Min(1400, (int)(wa.Width * 0.88)), hh = Math.Min(900, (int)(wa.Height * 0.9));
+                int x = wa.Left + (wa.Width - w) / 2, y = wa.Top + (wa.Height - hh) / 2;
+                SetWindowPos(h, IntPtr.Zero, x, y, w - 1, hh, 0x0004 | 0x0040); // NOZORDER | SHOWWINDOW
+                ShowWindowAsync(h, 5); // SW_SHOW
+                SetWindowPos(h, IntPtr.Zero, x, y, w, hh, 0x0004);      // 大小变化一次，让 Edge 立即重绘
+            }
             if (IsIconic(h)) ShowWindowAsync(h, 9); // SW_RESTORE
             SetForegroundWindow(h);
             return true;
+        }
+
+        // ---------- 后台预备窗口 ----------
+        static volatile bool preparing;
+        static DateTime lastPrepare = DateTime.MinValue;
+        [System.Runtime.InteropServices.DllImport("user32.dll", CharSet = System.Runtime.InteropServices.CharSet.Unicode)] static extern int GetClassName(IntPtr h, StringBuilder sb, int n);
+
+        // 本工具专用 Edge（数据目录是 ClaudeSwitcher\webview）的所有进程
+        static HashSet<int> WebviewPids()
+        {
+            var set = new HashSet<int>();
+            try
+            {
+                var marker = Path.Combine(Settings.StateDir, "webview");
+                using (var s = new System.Management.ManagementObjectSearcher("SELECT ProcessId, CommandLine FROM Win32_Process WHERE Name = 'msedge.exe'"))
+                    foreach (System.Management.ManagementObject o in s.Get())
+                    {
+                        var cl = Convert.ToString(o["CommandLine"]);
+                        if (cl != null && cl.IndexOf(marker, StringComparison.OrdinalIgnoreCase) >= 0) set.Add(Convert.ToInt32(o["ProcessId"]));
+                    }
+            }
+            catch { }
+            return set;
+        }
+
+        static IntPtr FindWebviewWindow(HashSet<int> pids)
+        {
+            IntPtr found = IntPtr.Zero;
+            if (pids.Count == 0) return found;
+            EnumWindows((h, p) =>
+            {
+                uint pid; GetWindowThreadProcessId(h, out pid);
+                if (!pids.Contains((int)pid)) return true;
+                var cls = new StringBuilder(64); GetClassName(h, cls, 64);
+                if (cls.ToString() != "Chrome_WidgetWin_1") return true;
+                var sb = new StringBuilder(256); GetWindowText(h, sb, 256);
+                if (sb.Length == 0) return true;
+                found = h; return false;
+            }, IntPtr.Zero);
+            return found;
+        }
+
+        static void PrepareStandby()
+        {
+            if (preparing || ui == null || (DateTime.Now - lastPrepare).TotalSeconds < 20) return;
+            if (FindAppWindow(true) != IntPtr.Zero) return;
+            if (FindWebviewWindow(WebviewPids()) != IntPtr.Zero) return;
+            preparing = true; lastPrepare = DateTime.Now;
+            new Thread(() =>
+            {
+                try
+                {
+                    OpenWindow(Url, true);
+                    for (int i = 0; i < 60; i++)
+                    {
+                        Thread.Sleep(150);
+                        var h = FindWebviewWindow(WebviewPids());
+                        if (h == IntPtr.Zero) continue;
+                        ShowWindowAsync(h, 0); // SW_HIDE：在屏幕外出现后立刻隐藏，用户看不到
+                        break;
+                    }
+                }
+                catch { }
+                finally { preparing = false; }
+            }) { IsBackground = true }.Start();
         }
 
         static void Quit()
@@ -316,7 +396,7 @@ namespace ClaudeSwitcher
             catch { }
         }
 
-        static Process OpenWindow(string url)
+        static Process OpenWindow(string url, bool hidden = false)
         {
             var edge = new[] {
                 Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86), @"Microsoft\Edge\Application\msedge.exe"),
@@ -324,14 +404,18 @@ namespace ClaudeSwitcher
             }.FirstOrDefault(File.Exists);
             if (edge == null) { Process.Start(url); return null; }
             var profile = Path.Combine(Settings.StateDir, "webview");
-            var args = "--app=\"" + url + "\" --user-data-dir=\"" + profile + "\" " + WindowArgs() + " " +
+            var winArgs = WindowArgs();
+            // 后台预备窗口：放在屏幕外创建，出现后立即隐藏
+            if (hidden) winArgs = System.Text.RegularExpressions.Regex.Replace(winArgs, "--window-position=\\S+", "--window-position=-32000,-32000");
+            var args = "--app=\"" + url + "\" --user-data-dir=\"" + profile + "\" " + winArgs + " " +
                        "--no-first-run --no-default-browser-check --lang=zh-CN " +
                        // 精简：这个专用窗口用不到扩展、翻译、侧边栏、同步、后台联网等，关掉以省内存
                        "--disable-extensions --disable-component-update --disable-background-networking --disable-sync --no-pings " +
                        "--disable-default-apps --disable-breakpad --disable-crash-reporter --renderer-process-limit=2 --disable-gpu-shader-disk-cache " +
                        // 界面很简单，用 CPU 绘制即可，省掉 GPU 进程的内存
                        "--disable-gpu --disable-gpu-compositing " +
-                       "--disable-features=Translate,msEdgeSidebarV2,msEdgeShopping,EdgeCollections,msUndersideButton,msEdgeEnhanceImages,msImplicitSignin,AutofillServerCommunication,MediaRouter,OptimizationHints";
+                       "--disable-backgrounding-occluded-windows --disable-renderer-backgrounding --disable-background-timer-throttling " +
+                       "--disable-features=Translate,msEdgeSidebarV2,msEdgeShopping,EdgeCollections,msUndersideButton,msEdgeEnhanceImages,msImplicitSignin,AutofillServerCommunication,MediaRouter,OptimizationHints,CalculateNativeWinOcclusion";
             DisableEdgeBackgroundMode(profile);
             return Process.Start(new ProcessStartInfo(edge, args) { UseShellExecute = false });
         }
