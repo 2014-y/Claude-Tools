@@ -133,7 +133,7 @@ svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:2;stroke-l
 .tr.cur::before{content:"";position:absolute;left:0;top:14px;bottom:14px;width:3px;border-radius:0 3px 3px 0;background:var(--grad)}
 .tr.slim{min-height:52px}
 .g-desk{grid-template-columns:minmax(240px,1.2fr) minmax(300px,1.4fr) 140px 300px}
-.g-cli{grid-template-columns:minmax(240px,1.5fr) 150px 380px}
+.g-cli{grid-template-columns:minmax(200px,1fr) minmax(260px,1.4fr) max-content}
 .g-sess{grid-template-columns:minmax(220px,1.6fr) 150px 150px minmax(160px,1fr) 130px 44px}
 .g-log{grid-template-columns:170px 140px minmax(200px,1fr) 90px 80px}
 .g-rank{grid-template-columns:minmax(160px,1fr) 2fr 130px}
@@ -260,18 +260,6 @@ svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:2;stroke-l
 .toast{display:flex;gap:10px;align-items:center;background:var(--panel);border:1px solid var(--border);box-shadow:var(--shadow);border-radius:12px;padding:12px 16px;min-width:260px;max-width:440px;animation:pop .16s ease-out;white-space:pre-line}
 .toast.ok svg{color:var(--green)} .toast.err svg{color:var(--red)}
 .hide{display:none!important}
-/* 余量数据来自本地记录、不够准确：隐藏所有进度条，账号列表只保留重置时间 */
-.track{display:none!important}
-#dlist .qbar > span:not(.rcell), #dlist .qbar > b{display:none!important}
-#dlist .qbar{display:block}
-/* 仪表盘：去掉基于本地记录的余量卡片、余量排行和一键切换 */
-#p-dash .box:has(#d2big), #p-dash .box:has(#d3big), #p-dash .box:has(#rankBox){display:none!important}
-#p-dash .grid4{grid-template-columns:repeat(2,minmax(0,1fr))}
-#p-dash .grid2:has(#rankBox){grid-template-columns:1fr}
-#curBox .qbars, #d1tag, #d1bar{display:none!important}
-/* 账号列表：去掉重置时间列 */
-.g-desk>:nth-child(2){display:none!important}
-.g-desk{grid-template-columns:minmax(260px,1.6fr) minmax(140px,1fr) 300px!important}
 .offline{position:fixed;top:14px;left:50%;transform:translateX(-50%);z-index:50;display:none;align-items:center;gap:10px;padding:10px 18px;border-radius:999px;background:var(--panel);border:1px solid rgba(255,77,79,.5);box-shadow:var(--shadow);color:#ff9a9a;font-size:13px;font-weight:600}
 .offline.show{display:flex}
 ::-webkit-scrollbar{width:10px;height:10px}::-webkit-scrollbar-thumb{background:var(--border);border-radius:10px;border:3px solid var(--bg)}
@@ -432,7 +420,7 @@ html.lt900{ .grid2{grid-template-columns:1fr} .app{padding:14px 16px} .kpis{disp
     </div>
     <div id="accDesk" style="display:contents">
       <div class="card fill">
-        <div class="thead g-desk"><div>账号</div><div>重置时间</div><div>上次使用</div><div style="text-align:right">操作</div></div>
+        <div class="thead g-desk"><div>账号</div><div>额度余量 · 重置时间</div><div>上次使用</div><div style="text-align:right">操作</div></div>
         <div class="tbody" id="dlist"></div>
       </div>
     </div>
@@ -586,7 +574,60 @@ const lvl = left => left == null ? 'na' : left < 20 ? 'bad' : left < 50 ? 'warn'
 function WR(){ try{ return JSON.parse((S.settings&&S.settings.weeklyResets)||'{}')||{}; }catch(e){ return {}; } }
 function weeklyNext(spec){ const m=/^(\d)\|(\d{1,2}):(\d{2})$/.exec(spec||''); if(!m) return 0; const now=new Date(), d=new Date(now);
   d.setHours(+m[2],+m[3],0,0); d.setDate(d.getDate()+((+m[1]-d.getDay()+7)%7)); if (d<=now) d.setDate(d.getDate()+7); return d.getTime(); }
+// 官方实时余量：桌面账号按邮箱对应到同邮箱的终端账号，由 Claude Code 自己用 /usage 查询
+let LIVE={};
+function parseReset(s){
+  s=String(s||''); const tm=/(\d{1,2})(?::(\d{2}))?\s*(am|pm)/i.exec(s); if(!tm) return 0;
+  let h=(+tm[1])%12 + (tm[3].toLowerCase()==='pm'?12:0); const mi=+(tm[2]||0), now=new Date();
+  const dm=/([A-Za-z]{3})[a-z]*\.?\s+(\d{1,2})/.exec(s); let d;
+  if (dm) { const mon='jan feb mar apr may jun jul aug sep oct nov dec'.split(' ').indexOf(dm[1].toLowerCase()); if (mon<0) return 0;
+    d=new Date(now.getFullYear(),mon,+dm[2],h,mi); if (d.getTime()<now.getTime()-36*3600e3) d=new Date(now.getFullYear()+1,mon,+dm[2],h,mi); }
+  else { d=new Date(now.getFullYear(),now.getMonth(),now.getDate(),h,mi); if (d<=now) d=new Date(d.getTime()+86400e3); }
+  return d.getTime();
+}
+const DUSAGE={};
+function rebuildLive(){
+  LIVE={}; (S.desktop||[]).forEach(p=>{ const u=DUSAGE[p.id]; if(!u) return;
+    LIVE[p.id]={ h5:u.session?Math.max(0,100-u.session.used):null, d7:u.week?Math.max(0,100-u.week.used):null,
+      r5:u.session?parseReset(u.session.resets):0, r7:u.week?parseReset(u.week.resets):0, at:u.at }; });
+}
+let liveBusy=false, liveAt=0;
+// 连接实时余量：用同一个账号在官方登录页登录一次（独立的查询目录，不影响桌面 App 和你自己的终端）
+let connecting=null;
+async function connectLive(p){
+  if (connecting) return; connecting=p.id;
+  try{
+    try{ await api('desktop/liveLogin',{id:p.id}); }catch(x){ toast(x.message,false); return; }
+    toast('正在连接「'+M(p.remark)+'」的实时余量：请在打开的官方页面里用 '+M(p.email)+' 授权（只需一次）');
+    for (let i=0;i<72;i++){ await new Promise(r=>setTimeout(r,5000)); try{ await refresh(true); }catch(x){}
+      const q=S.desktop.find(x=>x.id===p.id); if (q&&q.live){ await refreshLive(true); toast('「'+M(q.remark)+'」已开启实时余量'); break; } }
+  } finally { connecting=null; }
+}
+// 默认实时：发现还没连接的账号，自动发起一次连接（每个账号只自动弹一次）
+function autoConnect(){
+  let asked={}; try{ asked=JSON.parse(localStorage.getItem('liveAsked2')||'{}'); }catch(e){}
+  const p=(S.desktop||[]).find(x=>x.email&&x.loggedIn&&!x.live&&!asked[x.id]); if(!p||connecting) return;
+  asked[p.id]=1; try{ localStorage.setItem('liveAsked2',JSON.stringify(asked)); }catch(e){}
+  connectLive(p);
+}
+// 手动查询：30 秒内只能点一次，按钮上显示倒计时
+let manualAt=0;
+function liveCooldown(){ const b=document.querySelector('#dLive'); if(!b) return; const left=Math.ceil((manualAt+30e3-Date.now())/1000);
+  if (left>0) { b.disabled=true; b.innerHTML=ico('refresh')+left+' 秒后可再查'; setTimeout(liveCooldown,1000); }
+  else { b.disabled=false; b.innerHTML=ico('refresh')+'查询官方余量'; } }
+async function refreshLive(silent){
+  if (liveBusy) return; liveBusy=true; const b=document.querySelector('#dLive'); if(b) b.disabled=true;
+  try{
+    const list=(S.desktop||[]).filter(p=>p.live);
+    if (!list.length && !silent) toast('还没有连接实时余量的账号：点账号里的「连接实时余量」登录一次',false);
+    await Promise.all(list.map(p=>api('desktop/usage',{id:p.id}).then(r=>{ DUSAGE[p.id]=r; }).catch(e=>{ if(!silent) toast('「'+M(p.remark)+'」查询失败：'+e.message,false); })));
+    rebuildLive(); liveAt=Date.now(); renderAll(); if(!silent && list.length) toast('已更新官方余量');
+  } finally { liveBusy=false; liveCooldown(); }
+}
 function remain(q, id){
+  const L=id&&LIVE[id], P=id&&(S.desktop||[]).find(x=>x.id===id);
+  if (L) { const now=Date.now(); return {h5:L.h5, d7:L.d7, t:Date.now(), r5:L.r5>now?L.r5:0, r7:L.r7>now?L.r7:0, live:true, at:L.at}; }
+  if (P) return {h5:null, d7:null, t:0, r5:0, r7:0};
   if (!q) return {h5:null, d7:null, t:0};
   const manual = id ? weeklyNext(WR()[id]) : 0;
   if (manual) { q = Object.assign({}, q, {sevenReset: manual}); if (q.t < manual - 7*86400e3) q.sevenDay = 0; }
@@ -603,9 +644,9 @@ function resetAt(ms){ const d=new Date(ms), p=n=>String(n).padStart(2,'0'), now=
   return (d.toDateString()===now.toDateString() ? '' : (d.getMonth()+1)+'/'+d.getDate()+' ') + p(d.getHours())+':'+p(d.getMinutes()); }
 function countdown(ms){ let s=Math.max(0,Math.floor((ms-Date.now())/1000)); const d=Math.floor(s/86400); s%=86400; const h=Math.floor(s/3600), m=Math.floor(s%3600/60), x=s%60, p=n=>String(n).padStart(2,'0');
   return d>0 ? d+'天'+h+'时' : h+':'+p(m)+':'+p(x); }
-const resetHtml = ms => ms ? `<span class="rs" title="根据用量记录推算，可能比实际晚十几分钟">约 ${resetAt(ms)} 重置 · <b data-cd="${ms}">${countdown(ms)}</b></span>` : '';
+const resetHtml = (ms,live) => ms ? `<span class="rs" title="${live?'官方实时数据':'根据用量记录推算，可能比实际晚十几分钟'}">${live?'':'约 '}${resetAt(ms)} 重置 · <b data-cd="${ms}">${countdown(ms)}</b></span>` : '';
 setInterval(()=>{ document.querySelectorAll('[data-cd]').forEach(e=>{ const ms=+e.dataset.cd; if (ms<=Date.now()) { e.textContent='已重置'; } else e.textContent=countdown(ms); }); }, 1000);
-const qbar = (label, left, reset, pid) => `<div class="qbar"><span>${label}</span><div class="track"><i class="${lvl(left)}" style="width:${left??0}%"></i></div><b class="num">${pctTxt(left)}</b>${reset?`<div class="rline"${pid?` data-wr="${esc(pid)}" title="点击设置每周重置时间"`:''}>${reset==='set'?'<span class="setwr">点此填写每周重置时间</span>':resetHtml(reset)}</div>`:''}</div>`;
+const qbar = (label, left, reset, pid, live) => `<div class="qbar"><span>${label}</span><div class="track"><i class="${lvl(left)}" style="width:${left??0}%"></i></div><b class="num">${pctTxt(left)}</b>${reset?`<div class="rline"${pid?` data-wr="${esc(pid)}" title="点击设置每周重置时间"`:''}>${reset==='set'?'<span class="setwr">点此填写每周重置时间</span>':resetHtml(reset,live)}</div>`:''}</div>`;
 
 let offline=false;
 function setOffline(v){ if (offline===v) return; offline=v; $('#offline').classList.toggle('show', v); }
@@ -685,8 +726,8 @@ function renderDash(){
   };
   setQ('#d2big','#d2bar','#d2tag','#d2foot',r.h5);
   setQ('#d3big','#d3bar','#d3tag','#d3foot',r.d7);
-  $('#d2reset').innerHTML = r.r5 ? '<br>'+resetHtml(r.r5) : '';
-  $('#d3reset').innerHTML = r.r7 ? '<br>'+resetHtml(r.r7) : '';
+  $('#d2reset').innerHTML = r.r5 ? '<br>'+resetHtml(r.r5,r.live) : '';
+  $('#d3reset').innerHTML = r.r7 ? '<br>'+resetHtml(r.r7,r.live) : '';
   $('#d3used').textContent = r.d7==null ? '--' : (100-r.d7)+'%';
   $('#d2used').textContent = r.h5==null ? '--' : (100-r.h5)+'%';
   const low = Math.min(r.h5??100, r.d7??100);
@@ -707,7 +748,7 @@ function renderDash(){
     $('#curState').className='tag '+(S.desktopRunning?'green':'gray'); $('#curState').textContent=S.desktopRunning?'● 使用中':'未运行';
     $('#curBox').innerHTML = `<div class="curRow"><div class="who" style="flex:none;max-width:48%">${avatar(cur.email||cur.id,cur.remark)}<div style="min-width:0"><div class="name">${esc(M(cur.remark))}</div>
       <div class="tags">${cur.email?`<span class="tag gold">${esc(M(cur.email))}</span>`:''}<span class="tag cream">${cur.sessions} 条会话</span></div></div></div>
-      <div class="qbars" style="flex:0 1 300px;min-width:0;margin-left:auto">${qbar('5H 余量',r.h5)}${qbar('7天 余量',r.d7)}</div></div>`;
+      <div class="qbars" style="flex:0 1 300px;min-width:0;margin-left:auto">${qbar('5H 余量',r.h5,r.r5,'',r.live)}${qbar('7天 余量',r.d7,r.r7,'',r.live)}</div></div>`;
   } else $('#curBox').innerHTML='<div class="sub">还没有桌面账号</div>';
   const rows=S.desktop.map(p=>({p, r:remain(p.quota,p.id)})).sort((a,b)=>(b.r.d7??-1)-(a.r.d7??-1)||(b.r.h5??-1)-(a.r.h5??-1));
   $('#rankBox').innerHTML = rows.slice(0,4).map(({p,r})=>`<div class="rec ${p.id===S.best?'best':''}">
@@ -739,7 +780,7 @@ function renderDesk(){
       <div class="who">${avatar(p.email||p.id,p.remark)}<div style="min-width:0"><div class="name">${esc(M(p.remark))}</div>
         <div class="tags">${healthTag(p)}
         ${p.email?`<span class="tag gold">${esc(M(p.email))}</span>`:'<span class="tag gray">未识别邮箱</span>'}</div></div></div>
-      <div class="qbars rq" title="${r.t?'配额记录于 '+ago(r.t):'暂无配额记录'}">${qbar('5H 余量',r.h5,r.r5)}${qbar('7天 余量',r.d7,r.r7,p.id)}</div>
+      <div class="qbars rq" title="${r.live?'官方实时数据 · 查询于 '+esc(r.at||''):(p.live?'正在查询官方余量…':'还没连接实时余量，点下方按钮用这个账号登录一次即可')}">${qbar('5H 余量',r.h5,r.r5,'',r.live)}${qbar('7天 余量',r.d7,r.r7,r.live?'':p.id,r.live)}${p.live?'':`<button class="btn sm" data-a="liveLogin" style="margin-top:6px;width:auto;justify-self:start;align-self:flex-start" title="用同一个账号在官方登录页登录一次，之后每分钟自动查询官方实时余量（只需一次）">${ico('zap')}连接实时余量</button>`}</div>
       <div class="time">${esc(d||'-')}<small>${esc(t||'')}</small></div>
       <div class="ops">${p.active
           ? `<button class="btn sm" data-a="launch" ${S.desktopRunning?'disabled':''}>${ico('launch')}${S.desktopRunning?'使用中':'打开 App'}</button>`
@@ -750,6 +791,11 @@ function renderDesk(){
   }).join('');
 }
 
+// 终端账号的官方实时用量（点「查询用量」时由 Claude Code 自己查询）
+const USAGE={};
+function usageHtml(id){ const u=USAGE[id]; if(!u) return '';
+  const line=(n,x)=>x?`<div class="sub" style="margin-top:4px">${n}已用 <b style="color:var(--text)">${x.used}%</b> · 重置 ${esc(x.resets)}</div>`:'';
+  return line('当前会话',u.session)+line('本周（所有模型）',u.week)+`<div class="sub" style="font-size:11.5px">官方实时数据 · 查询于 ${esc(u.at)}</div>`; }
 function renderCli(){
   $('#recent').innerHTML=(S.recent||[]).map(r=>`<option value="${esc(r)}">`).join('');
   if (!$('#cdir').value && S.recent && S.recent.length) $('#cdir').value=S.recent[0];
@@ -764,8 +810,8 @@ function renderCli(){
   $('#clist').innerHTML = S.cli.filter(a=>!q||(a.remark+' '+a.email).toLowerCase().includes(q)).map(a=>`<div class="tr g-cli" data-id="${esc(a.id)}">
       <div class="who">${avatar(a.email||a.id,a.remark)}<div style="min-width:0"><div class="name">${esc(M(a.remark))}</div>
         <div class="tags">${a.isDefault?'<span class="tag gray">原始 ~/.claude</span>':`<span class="tag gray">${esc(a.id)}</span>`}${a.email?`<span class="tag gold">${esc(M(a.email))}</span>`:''}</div></div></div>
-      <div>${a.loggedIn?'<span class="tag green">● 已登录</span>':'<span class="tag yellow">未登录 · 启动时登录</span>'}</div>
-      <div class="ops"><button class="btn sm main" data-a="new">${ico('play')}新对话</button>
+      <div>${a.loggedIn?'<span class="tag green">● 已登录</span>':'<span class="tag yellow">未登录 · 启动时登录</span>'}${usageHtml(a.id)}</div>
+      <div class="ops"><button class="btn sm" data-a="usage">${ico('refresh')}查询用量</button><button class="btn sm main" data-a="new">${ico('play')}新对话</button>
         <button class="btn sm" data-a="resume">${ico('history')}历史</button><button class="btn sm" data-a="continue">${ico('forward')}继续</button>
         <button class="op" data-a="rename" title="改备注" ${a.isDefault?'disabled':''}>${ico('edit')}</button>
         <button class="op danger" data-a="delete" title="删除" ${a.isDefault?'disabled':''}>${ico('trash')}</button></div></div>`).join('');
@@ -775,7 +821,7 @@ function setAccSub(s){
   accSub=s; $$('#accSeg button').forEach(b=>b.classList.toggle('on',b.dataset.s===s));
   $('#accDesk').classList.toggle('hide',s!=='desk'); $('#accCli').classList.toggle('hide',s!=='cli');
   $('#accBtns').innerHTML = s==='desk'
-    ? `<button class="btn" id="dRefresh">${ico('refresh')}刷新</button><button class="btn main" id="dAdd">${ico('plus')}添加账号（官方登录）</button>`
+    ? `<button class="btn" id="dLive">${ico('refresh')}查询官方余量</button><button class="btn" id="dRefresh">${ico('refresh')}刷新</button><button class="btn main" id="dAdd">${ico('plus')}添加账号（官方登录）</button>`
     : `<button class="btn" id="cRepair">${ico('wrench')}修复</button><button class="btn main" id="cAdd">${ico('plus')}添加账号</button>`;
 }
 $('#accSeg').onclick=e=>{ const b=e.target.closest('button'); if(b) setAccSub(b.dataset.s); };
@@ -1115,6 +1161,9 @@ async function doSwitch(p){
 document.addEventListener('click', async e=>{
   const sw=e.target.closest('[data-sw]'); if (sw){ doSwitch(S.desktop.find(x=>x.id===sw.dataset.sw)); return; }
   if (e.target.closest('#dRefresh')) { run('state',null,'刷新中…','已刷新'); return; }
+  if (e.target.closest('#dLive')) { const left=Math.ceil((manualAt+30e3-Date.now())/1000);
+    if (left>0) { toast('查询太频繁，请 '+left+' 秒后再试',false); return; }
+    manualAt=Date.now(); liveCooldown(); refreshLive(false); return; }
   if (e.target.closest('#dAdd')) {
     const name=await dialog({title:'添加 Claude 桌面 App 账号', text:'先给新账号起个备注名（比如「工作号」）。\n确定后会关闭 Claude 桌面 App，再打开全新的官方登录页，用另一个账号登录即可。\n当前账号会自动保存，以后一键切回。', input:'', okText:'去登录'});
     if (name!==null) run('desktop/add',{remark:name||'新账号'},'正在关闭 Claude 并准备登录页…','已打开 Claude 登录页，请在 App 里完成登录'); return;
@@ -1132,6 +1181,7 @@ $('#dlist').onclick=async e=>{
   else if (a==='launch') run('desktop/launch',{id},'正在打开 Claude…','已打开 Claude 桌面 App');
   else if (a==='rename'){ const v=await dialog({title:'修改备注', input:p.remark}); if(v) run('desktop/rename',{id,remark:v},'保存中…','已保存'); }
   else if (a==='open') api('desktop/open',{id}).catch(x=>toast(x.message,false));
+  else if (a==='liveLogin') connectLive(p);
   else if (a==='delete' && await dialog({title:'删除「'+M(p.remark)+'」？', text:'会删除这个账号保存的登录信息和它在桌面 App 里的会话记录，无法恢复。\n（~/.claude 里的对话记录不受影响）', okText:'删除', danger:true}))
     run('desktop/delete',{id},'删除中…','已删除');
 };
@@ -1148,6 +1198,11 @@ $('#cdirChips').onclick=e=>{ const b=e.target.closest('[data-dir]'); if(b){ $('#
 $('#clist').onclick=async e=>{
   const b=e.target.closest('[data-a]'); if(!b||b.disabled) return;
   const id=b.closest('.tr').dataset.id, c=S.cli.find(x=>x.id===id), a=b.dataset.a;
+  if (a==='usage') {
+    loading(true,'正在向官方查询「'+M(c.remark)+'」的用量…（约 5–20 秒）');
+    try{ USAGE[id]=await api('cli/usage',{id}); renderCli(); toast('已更新用量'); }catch(e){ toast(e.message,false); } finally{ loading(false); }
+    return;
+  }
   if (['new','resume','continue'].includes(a)) {
     if (S.cliStatus && !S.cliStatus.installed) { toast('请先安装 Claude Code（点上方「一键安装」）', false); return; }
     if (!$('#cdir').value.trim()) { toast('先选择要在哪个项目文件夹里启动'); if (!await pickFolder()) return; }
@@ -1196,6 +1251,8 @@ async function refreshAll(silent){
 $('#refreshAll').onclick=()=>refreshAll(false);
 document.addEventListener('keydown', e=>{ if (e.key==='F5') { e.preventDefault(); refreshAll(false); } });
 setAutoAll(AUTO_ALL);
+// 官方余量：启动后查一次，之后每 1 分钟静默更新（由 Claude Code 自己用 /usage 查询，不影响正常使用）
+setInterval(()=>{ if (S && S.desktop && !offline) autoConnect(); if (S && S.desktop && S.desktop.some(p=>p.live) && !offline && Date.now()-liveAt>60e3) refreshLive(true); }, 10000);
 
 // ---------- 自适应缩放：小于 1280×780 时整体略微缩小（最小 85%） ----------
 const BASE_W=1280, BASE_H=780;

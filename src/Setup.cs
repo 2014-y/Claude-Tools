@@ -1,4 +1,4 @@
-// Claude Tools 安装程序（也兼作卸载程序）。.NET Framework 4 / C# 5，不需要任何第三方工具。
+﻿// Claude Tools 安装程序（也兼作卸载程序）。.NET Framework 4 / C# 5，不需要任何第三方工具。
 // 用法：双击 = 图形安装向导；Setup.exe /S [/D=安装目录] = 静默安装；Uninstall.exe /uninstall [/S] = 卸载
 using System;
 using System.Diagnostics;
@@ -165,7 +165,7 @@ class Wizard : Form
 
     public Wizard(string dir)
     {
-        Text = "安装 Claude Tools"; Font = new Font("Microsoft YaHei UI", 9.5f); ClientSize = new Size(540, 360);
+        Text = "安装 Claude Tools"; Font = new Font("Microsoft YaHei UI", 9.5f); ClientSize = new Size(540, 392);
         FormBorderStyle = FormBorderStyle.FixedDialog; MaximizeBox = false; StartPosition = FormStartPosition.CenterScreen; BackColor = Color.White;
         try { Icon = Icon.ExtractAssociatedIcon(Application.ExecutablePath); } catch { }
         var head = new Panel { Left = 0, Top = 0, Width = 540, Height = 84, BackColor = Color.FromArgb(244, 99, 58) };
@@ -180,8 +180,8 @@ class Wizard : Form
         cMenu = new CheckBox { Text = "创建开始菜单快捷方式", Left = 22, Top = 204, Checked = true, AutoSize = true };
         cAuto = new CheckBox { Text = "开机自动在后台运行（托盘，不弹窗口）", Left = 22, Top = 232, Checked = false, AutoSize = true };
         cRun = new CheckBox { Text = "安装完成后立即运行", Left = 22, Top = 260, Checked = true, AutoSize = true };
-        ok = new Button { Text = "安装", Left = 320, Top = 308, Width = 100, Height = 34, BackColor = Color.FromArgb(244, 99, 58), ForeColor = Color.White, FlatStyle = FlatStyle.Flat };
-        var cancel = new Button { Text = "取消", Left = 432, Top = 308, Width = 84, Height = 34 };
+        ok = new Button { Text = "安装", Left = 320, Top = 300, Width = 100, Height = 34, BackColor = Color.FromArgb(244, 99, 58), ForeColor = Color.White, FlatStyle = FlatStyle.Flat };
+        var cancel = new Button { Text = "取消", Left = 432, Top = 300, Width = 84, Height = 34 };
         cancel.Click += delegate { Close(); };
         ok.Click += delegate
         {
@@ -195,6 +195,6 @@ class Wizard : Form
             catch (Exception ex) { MessageBox.Show(ex.Message, "安装失败", MessageBoxButtons.OK, MessageBoxIcon.Error); ok.Enabled = true; ok.Text = "安装"; }
         };
         Controls.AddRange(new Control[] { path, browse, cDesk, cMenu, cAuto, cRun, ok, cancel });
-        Controls.Add(new Label { Text = "非官方工具，与 Anthropic 无关 · MIT 开源 · github.com/2014-y/Claude-Tools", ForeColor = Color.Gray, Left = 22, Top = 316, AutoSize = true, Font = new Font("Microsoft YaHei UI", 8f) });
+        Controls.Add(new Label { Text = "非官方工具，与 Anthropic 无关 · MIT 开源 · github.com/2014-y/Claude-Tools", ForeColor = Color.Gray, Left = 0, Top = 352, Width = 540, Height = 40, AutoSize = false, TextAlign = ContentAlignment.MiddleCenter, BackColor = Color.FromArgb(246, 246, 246), Font = new Font("Microsoft YaHei UI", 8f) });
     }
 }

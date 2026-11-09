@@ -1,4 +1,4 @@
-// 程序入口：托盘常驻 + 本地接口（HttpListener）+ Edge 应用模式窗口（ui.html 内嵌在 exe 中）
+﻿// 程序入口：托盘常驻 + 本地接口（HttpListener）+ Edge 应用模式窗口（ui.html 内嵌在 exe 中）
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -48,8 +48,28 @@ namespace ClaudeSwitcher
         }
 
         [STAThread]
+        // 清掉从别的 Claude 会话继承来的环境变量（账号、令牌、代理地址等），
+        // 否则子进程 claude 会用那个会话的账号，而不是各账号自己的登录
+        static void CleanInheritedEnv()
+        {
+            try
+            {
+                foreach (System.Collections.DictionaryEntry e in Environment.GetEnvironmentVariables())
+                {
+                    var k = (string)e.Key;
+                    if (k.StartsWith("CLAUDE_CODE_", StringComparison.OrdinalIgnoreCase) || k.StartsWith("ANTHROPIC_", StringComparison.OrdinalIgnoreCase) ||
+                        k.StartsWith("CLAUDE_AGENT_SDK", StringComparison.OrdinalIgnoreCase) || k.StartsWith("CLAUDE_PREVIEW", StringComparison.OrdinalIgnoreCase) ||
+                        k.Equals("CLAUDECODE", StringComparison.OrdinalIgnoreCase) || k.Equals("CLAUDE_PID", StringComparison.OrdinalIgnoreCase) ||
+                        k.Equals("CLAUDE_CONFIG_DIR", StringComparison.OrdinalIgnoreCase))
+                        Environment.SetEnvironmentVariable(k, null);
+                }
+            }
+            catch { }
+        }
+
         static void Main(string[] args)
         {
+            CleanInheritedEnv();
             if (RelaunchOutsideJob(args)) return;
             bool first;
             // 测试实例用独立的单实例锁，不影响正在运行的正式版
@@ -464,6 +484,9 @@ namespace ClaudeSwitcher
                     }
                 case "pickDir": return PickDir(S(a, "start"));
                 case "cli/status": return CliStatus(true);
+                case "cli/usage": return CliUsage(S(a, "id"));
+                case "desktop/usage": return DesktopUsage(S(a, "id"));
+                case "desktop/liveLogin": Logged("连接实时余量", S(a, "id"), () => LiveLogin(S(a, "id"))); return null;
                 case "cli/install": Logged("安装 Claude Code", "官方安装脚本", InstallCli); return null;
                 case "openPath":
                     {
@@ -533,7 +556,7 @@ namespace ClaudeSwitcher
             var desktop = profiles.Select(p => new Dictionary<string, object> {
                 { "id", p.Id }, { "remark", p.Remark }, { "email", p.Email ?? "" }, { "active", p.Active },
                 { "lastUsed", p.LastUsed.ToString("yyyy/MM/dd HH:mm") }, { "sessions", p.Sessions }, { "dir", p.Dir }, { "loggedIn", p.LoggedIn },
-                { "quota", QuotaJson(QuotaReader.Read(p.Dir)) }
+                { "quota", QuotaJson(QuotaReader.Read(p.Dir)) }, { "live", LiveSource(p) != null }
             }).ToList();
             var cli = Store.Load().Select(c => new Dictionary<string, object> {
                 { "id", c.Folder }, { "remark", c.Remark }, { "email", c.Email ?? "" }, { "loggedIn", c.LoggedIn },
@@ -609,6 +632,97 @@ namespace ClaudeSwitcher
             var cmd = "$host.UI.RawUI.WindowTitle='安装 Claude Code'; Write-Host '正在安装 Claude Code（官方安装脚本 https://claude.ai/install.ps1）...' -ForegroundColor Cyan; " +
                       "irm https://claude.ai/install.ps1 | iex; Write-Host ''; Write-Host '安装结束。回到 Claude Tools 点「重新检测」即可使用。' -ForegroundColor Green";
             Process.Start(new ProcessStartInfo("powershell.exe", "-NoExit -NoProfile -ExecutionPolicy Bypass -Command \"" + cmd.Replace("\"", "\\\"") + "\"") { UseShellExecute = true });
+        }
+
+        // ---------- 官方实时余量 ----------
+        // 让 Claude Code 自己执行 /usage（它自己处理登录令牌，本工具从不读取或解密任何令牌）
+        static Dictionary<string, object> CliUsage(string id)
+        {
+            var acc = Store.Load().FirstOrDefault(x => x.Folder == id);
+            if (acc == null) throw new Exception("找不到这个账号");
+            if (!acc.LoggedIn) throw new Exception("这个终端账号还没有登录，请先点「新对话」登录一次");
+            return RunUsage(acc.IsDefault ? null : acc.Dir, acc.Remark);
+        }
+
+        // 桌面账号的「查询通道」：工具私有的 Claude Code 配置目录，用同一个账号通过官方 claude auth login 登录一次
+        static string ProbeDir(string pid) { return Path.Combine(Settings.StateDir, "probe", pid); }
+        static string JsonEmail(string dir)
+        {
+            try
+            {
+                var f = Path.Combine(dir, ".claude.json"); if (!File.Exists(f)) return "";
+                var m = System.Text.RegularExpressions.Regex.Match(File.ReadAllText(f, Encoding.UTF8), "\"emailAddress\"\\s*:\\s*\"([^\"]+)\"");
+                return m.Success ? m.Groups[1].Value : "";
+            }
+            catch { return ""; }
+        }
+        // 返回可用于查询的配置目录（"" 表示默认 ~/.claude）；没有则返回 null
+        static string LiveSource(DesktopProfile p)
+        {
+            var email = (p.Email ?? "").Trim();
+            if (email.Length == 0) return null;
+            try
+            {
+                var c = Store.Load().FirstOrDefault(x => x.LoggedIn && string.Equals(x.Email, email, StringComparison.OrdinalIgnoreCase));
+                if (c != null) return c.IsDefault ? "" : c.Dir;
+            }
+            catch { }
+            var d = ProbeDir(p.Id);
+            if (File.Exists(Path.Combine(d, ".credentials.json")) && string.Equals(JsonEmail(d), email, StringComparison.OrdinalIgnoreCase)) return d;
+            return null;
+        }
+        static Dictionary<string, object> DesktopUsage(string id)
+        {
+            var p = DesktopStore.Load().FirstOrDefault(x => x.Id == id);
+            if (p == null) throw new Exception("找不到这个账号");
+            var src = LiveSource(p);
+            if (src == null)
+            {
+                var d = ProbeDir(p.Id); var e = JsonEmail(d);
+                if (e.Length > 0 && !string.Equals(e, p.Email, StringComparison.OrdinalIgnoreCase))
+                    throw new Exception("查询通道登录的是 " + e + "，不是这个账号，请重新连接");
+                throw new Exception("NEED_LOGIN");
+            }
+            return RunUsage(src.Length == 0 ? null : src, p.Remark);
+        }
+        static void LiveLogin(string id)
+        {
+            var p = DesktopStore.Load().FirstOrDefault(x => x.Id == id);
+            if (p == null) throw new Exception("找不到这个账号");
+            if (string.IsNullOrEmpty(p.Email)) throw new Exception("还没识别到这个账号的邮箱，请先切换到它并打开一次桌面 App");
+            var st = CliStatus(false); if (!(bool)st["installed"]) st = CliStatus(true);
+            if (!(bool)st["installed"]) throw new Exception("需要先安装 Claude Code：到「账号管理 → 终端 Claude Code」点「一键安装」");
+            var d = ProbeDir(p.Id);
+            // 之前连到了别的账号或没登录完：清掉重来
+            if (Directory.Exists(d) && LiveSource(p) != d) { try { Directory.Delete(d, true); } catch { } }
+            Directory.CreateDirectory(d);
+            var mail = p.Email.Replace("\"", "");
+            var cmd = "title 连接实时余量 - " + mail + " && echo. && echo   请在打开的官方登录页里，用 " + mail + " 登录（和桌面 App 同一个账号）。 && echo   注意：如果浏览器里 claude.ai 当前登录的是别的账号，请先在网页里切换到 " + mail + " 再授权。 && echo   登录完成后回到 Claude Tools，余量会自动出现，本窗口可以关掉。 && echo. && \"" + (string)st["path"] + "\" auth login --claudeai --email " + mail;
+            var psi = new ProcessStartInfo("cmd.exe", "/k " + cmd) { UseShellExecute = false };
+            psi.EnvironmentVariables["CLAUDE_CONFIG_DIR"] = d;
+            Process.Start(psi);
+        }
+        static readonly object UsageLock = new object();
+        static Dictionary<string, object> RunUsage(string configDir, string name)
+        {
+            var st = CliStatus(false); if (!(bool)st["installed"]) st = CliStatus(true);
+            if (!(bool)st["installed"]) throw new Exception("这台电脑还没有安装 Claude Code");
+            var psi = new ProcessStartInfo((string)st["path"], "-p \"/usage\"") { UseShellExecute = false, RedirectStandardOutput = true, RedirectStandardError = true, CreateNoWindow = true, StandardOutputEncoding = Encoding.UTF8, WorkingDirectory = Settings.StateDir };
+            if (configDir == null) psi.EnvironmentVariables.Remove("CLAUDE_CONFIG_DIR"); else psi.EnvironmentVariables["CLAUDE_CONFIG_DIR"] = configDir;
+            string output;
+            using (var p = Process.Start(psi))
+            {
+                var errTask = p.StandardError.ReadToEndAsync();
+                var outTask = p.StandardOutput.ReadToEndAsync();
+                if (!p.WaitForExit(75000)) { try { p.Kill(); } catch { } throw new Exception("查询超时（75 秒），请稍后重试"); }
+                output = outTask.Result;
+            }
+            var ses = System.Text.RegularExpressions.Regex.Match(output, @"Current session:\s*(\d+)%\s*used[^\n]*?resets\s+([^\n(]+?)\s*\(");
+            var wk = System.Text.RegularExpressions.Regex.Match(output, @"Current week \(all models\):\s*(\d+)%\s*used[^\n]*?resets\s+([^\n(]+?)\s*\(");
+            if (!ses.Success && !wk.Success) throw new Exception("没有读到用量（登录可能已失效，请重新连接）");
+            Func<System.Text.RegularExpressions.Match, Dictionary<string, object>> f = m => m.Success
+                ? new Dictionary<string, object> { { "used", int.Parse(m.Groups[1].Value) }, { "resets", m.Groups[2].Value.Trim() } } : null;
+            return new Dictionary<string, object> { { "session", f(ses) }, { "week", f(wk) }, { "at", DateTime.Now.ToString("HH:mm:ss") } };
         }
 
         static void CliLaunch(string id, string dir, string mode)
