@@ -367,6 +367,8 @@ html.lt900{ .grid2{grid-template-columns:1fr} .app{padding:14px 16px} .kpis{disp
           <div class="mini"><span class="k">5 小时已使用</span><b class="num v" id="d2used">-</b></div>
           <div class="mini"><span class="k">使用建议</span><b class="v" id="d2tip" style="font-size:16px">-</b></div>
         </div>
+        <svg class="spark" id="d2spark" viewBox="0 0 300 46" preserveAspectRatio="none" style="flex:1;min-height:46px"></svg>
+        <div class="sub" id="d2sparkTip" style="font-size:11.5px;margin-top:2px"></div>
       </div>
       <div class="box">
         <div class="box-h"><span class="ic">${'cal'}</span>7 天余量<span class="tag" id="d3tag"></span></div>
@@ -378,6 +380,7 @@ html.lt900{ .grid2{grid-template-columns:1fr} .app{padding:14px 16px} .kpis{disp
           <div class="mini"><span class="k">余量排名</span><b class="num v" id="d3rank">-</b></div>
         </div>
         <svg class="spark" id="d3spark" viewBox="0 0 300 46" preserveAspectRatio="none" style="flex:1;min-height:46px"></svg>
+        <div class="sub" id="d3sparkTip" style="font-size:11.5px;margin-top:2px"></div>
       </div>
       <div class="box">
         <div class="box-h"><span class="ic g">${'zap'}</span>今日 Token<span class="tag cream" id="d4tag">统计中</span></div>
@@ -386,6 +389,8 @@ html.lt900{ .grid2{grid-template-columns:1fr} .app{padding:14px 16px} .kpis{disp
           <div class="mini"><span class="k">估算费用</span><b class="num v" id="d4in">-</b></div>
           <div class="mini"><span class="k">今日请求</span><b class="num v" id="d4out">-</b></div>
         </div>
+        <svg class="spark" id="d4bars" viewBox="0 0 300 46" preserveAspectRatio="none" style="flex:1;min-height:46px"></svg>
+        <div class="sub" id="d4barsTip" style="font-size:11.5px;margin-top:2px">今日每小时 Token</div>
         <div class="box-f"><span id="d4foot">本月 -</span><button class="btn sm" data-goto="stats">详细统计 ${'forward'}</button></div>
       </div>
     </div>
@@ -446,7 +451,7 @@ html.lt900{ .grid2{grid-template-columns:1fr} .app{padding:14px 16px} .kpis{disp
   <div class="page hide" id="p-sess">
     <div class="bar">
       <label class="search"><svg><use href="#i-search"/></svg><input id="sq" placeholder="搜索标题 / 目录 / 模型…"></label>
-      <div class="chips" id="schips"></div>
+      <select class="sel" id="schips" title="按账号筛选"></select>
       <div class="spacer"></div>
       <label class="pill" style="cursor:pointer"><input type="checkbox" id="sArch" style="margin:0;accent-color:#ff5a1f"> 显示已归档</label>
       <button class="btn" id="sRefresh">${'refresh'}刷新</button>
@@ -484,7 +489,7 @@ html.lt900{ .grid2{grid-template-columns:1fr} .app{padding:14px 16px} .kpis{disp
 
   <div class="page hide" id="p-logs">
     <div class="bar">
-      <div class="chips" id="lchips"></div>
+      <select class="sel" id="lchips" title="按操作筛选"></select>
       <div class="spacer"></div>
       <button class="btn" id="lRefresh">${'refresh'}刷新</button>
       <button class="btn" id="lClear">${'trash'}清空日志</button>
@@ -697,11 +702,29 @@ document.addEventListener('click', e=>{ const g=e.target.closest('[data-goto]');
 // ---------- 渲染 ----------
 function renderAll(){
   $('#runState').innerHTML = `<span class="dot ${S.desktopRunning?'on':''}"></span><span>Claude 桌面 App ${S.desktopRunning?'运行中':'未运行'}</span>`;
-  renderDash(); renderDesk(); renderCli(); if (page==='set') renderSettings();
+  renderDash(); renderDesk(); renderCli(); applyMenus(); if (page==='set') renderSettings();
   const cur=S.desktop.find(p=>p.active);
   $('#footL').textContent = cur ? M(`当前桌面 App 账号：${cur.remark}${cur.email&&cur.email!==cur.remark?'（'+cur.email+'）':''}`) : '';
 }
 
+// 小走势图：hist=[[时间ms, 5H已用%, 7天已用%]...]，idx 选列，span 为时间跨度
+function drawSpark(sel, tipSel, hist, idx, span, label){
+  const now=Date.now(), pts=hist.filter(h=>h[0]>=now-span && h[idx]>=0), W=300, H=46, svg=$(sel);
+  if (pts.length<2){ svg.innerHTML=''; svg.style.display='none'; $(tipSel).textContent = label+'：数据积累中（每分钟记录一次）'; return; }
+  svg.style.display='';
+  const t0=Math.max(pts[0][0], now-span), xy=pts.map(p=>[(p[0]-t0)/(now-t0||1)*W, H-3-p[idx]/100*(H-6)]);
+  xy.push([W, xy[xy.length-1][1]]);
+  const line=xy.map((p,i)=>(i?'L':'M')+p[0].toFixed(1)+','+p[1].toFixed(1)).join('');
+  const gid='g'+sel.slice(1);
+  svg.innerHTML=`<defs><linearGradient id="${gid}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ff5a1f" stop-opacity=".45"/><stop offset="1" stop-color="#ffc93c" stop-opacity="0"/></linearGradient></defs>
+    <path d="${line}L${W},${H}L0,${H}Z" fill="url(#${gid})" stroke="none"/><path d="${line}" stroke="#ff7a33" stroke-width="2" fill="none" vector-effect="non-scaling-stroke"/>`;
+  $(tipSel).textContent = label+'（官方数据）';
+}
+function drawBars(sel, vals){
+  const svg=$(sel), W=300, H=46, n=vals.length, max=Math.max(1,...vals), bw=W/n;
+  svg.innerHTML = vals.map((v,i)=> v<0 ? `<rect x="${(i*bw+1).toFixed(1)}" y="${H-2}" width="${(bw-2).toFixed(1)}" height="2" rx="1" fill="var(--border)"/>`
+    : `<rect x="${(i*bw+1).toFixed(1)}" y="${(H-Math.max(2,v/max*(H-2))).toFixed(1)}" width="${(bw-2).toFixed(1)}" height="${Math.max(2,v/max*(H-2)).toFixed(1)}" rx="1.5" fill="${i===new Date().getHours()?'#ff7a33':'#ffb36b'}"><title>${String(i).padStart(2,'0')}:00 · ${fmt(v)}</title></rect>`).join('');
+}
 function renderDash(){
   const cur=S.desktop.find(p=>p.active), n=S.desktop.length;
   const name=(S.settings&&S.settings.userName)||(cur?cur.remark:'');
@@ -733,14 +756,9 @@ function renderDash(){
   const ranked=S.desktop.map(p=>({id:p.id, d7:remain(p.quota,p.id).d7})).filter(x=>x.d7!=null).sort((a,b)=>b.d7-a.d7);
   const pos=cur ? ranked.findIndex(x=>x.id===cur.id) : -1;
   $('#d3rank').textContent = pos<0 ? '--' : '第 '+(pos+1)+' / '+ranked.length;
-  const rec=(cur&&cur.quota&&cur.quota.recent)||[];
-  if (rec.length>1){
-    const W=300,H=46,max=7*24*60, pts=rec.map(p=>[p[0]/max*W, H-4-(100-p[2])/100*(H-8)]);
-    const line=pts.map((p,i)=>(i?'L':'M')+p[0].toFixed(1)+','+p[1].toFixed(1)).join('');
-    $('#d3spark').innerHTML=`<defs><linearGradient id="gs" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ff5a1f" stop-opacity=".45"/><stop offset="1" stop-color="#ffc93c" stop-opacity="0"/></linearGradient></defs>
-      <path d="${line}L${pts[pts.length-1][0]},${H}L${pts[0][0]},${H}Z" fill="url(#gs)" stroke="none"/><path d="${line}" stroke="#ff7a33" stroke-width="2" fill="none" vector-effect="non-scaling-stroke"/>`;
-  } else $('#d3spark').innerHTML='';
-  $('#d3spark').style.display = rec.length>1 ? '' : 'none';
+  const hist=(cur&&DUSAGE[cur.id]&&DUSAGE[cur.id].hist)||[];
+  drawSpark('#d2spark','#d2sparkTip', hist, 1, 5*3600e3, '近 5 小时已用走势');
+  drawSpark('#d3spark','#d3sparkTip', hist, 2, 7*86400e3, '近 7 天已用走势');
   if (cur){
     $('#curState').className='tag '+(S.desktopRunning?'green':'gray'); $('#curState').textContent=S.desktopRunning?'● 使用中':'未运行';
     $('#curBox').innerHTML = `<div class="curRow"><div class="who" style="flex:none;max-width:48%">${avatar(cur.email||cur.id,cur.remark)}<div style="min-width:0"><div class="name">${esc(M(cur.remark))}</div>
@@ -830,8 +848,9 @@ function renderSess(){
   const showArch=$('#sArch').checked, q=$('#sq').value.trim().toLowerCase();
   const base=SESS.filter(s=>showArch||!s.archived);
   const accs=[...new Set(base.map(s=>s.account))];
-  $('#schips').innerHTML=[['all','全部',base.length],...accs.map(a=>[a,M(a),base.filter(s=>s.account===a).length])]
-    .map(([k,t,c])=>`<button class="chip ${sFilter===k?'on':''}" data-f="${esc(k)}">${esc(t)}<b>${c}</b></button>`).join('');
+  if (sFilter!=='all' && !accs.includes(sFilter)) sFilter='all';
+  $('#schips').innerHTML=[['all','全部账号',base.length],...accs.map(a=>[a,M(a),base.filter(s=>s.account===a).length])]
+    .map(([k,t,c])=>`<option value="${esc(k)}" ${sFilter===k?'selected':''}>${esc(t)}（${c}）</option>`).join('');
   const list=base.filter(s=>(sFilter==='all'||s.account===sFilter)&&(!q||(s.title+' '+s.cwd+' '+s.model).toLowerCase().includes(q)));
   PG_RENDER.sess=renderSess; setTimeout(()=>{ $('#slistPg').innerHTML=pager('sess', list.length); });
   $('#slist').innerHTML = list.length ? pageOf('sess', list).map(s=>{ const [d,t]=dt(s.last); const leaf=(s.cwd||'').split(/[\\/]/).filter(Boolean).pop()||'-';
@@ -851,7 +870,7 @@ $('#sMerge').onclick=async()=>{
   catch(e){ toast(e.message,false); } finally{ loading(false); }
 };
 $('#sq').oninput=()=>{ pgReset('sess'); renderSess(); }; $('#sArch').onchange=()=>{ pgReset('sess'); renderSess(); }; $('#sRefresh').onclick=()=>loadSessions().then(()=>toast('已刷新'));
-$('#schips').onclick=e=>{ const c=e.target.closest('.chip'); if(c){ sFilter=c.dataset.f; pgReset('sess'); renderSess(); } };
+$('#schips').onchange=e=>{ sFilter=e.target.value; pgReset('sess'); renderSess(); };
 $('#slist').onclick=e=>{ const b=e.target.closest('[data-open]'); if(b) api('openPath',{path:b.dataset.open}).catch(x=>toast(x.message,false)); };
 
 // ---------- 分页 ----------
@@ -908,6 +927,7 @@ function renderStats(){
   // 仪表盘卡片
   if (s.today){ $('#d4big').textContent=fmt(s.today.total); $('#d4in').textContent=money(s.today.cost); $('#d4out').textContent=s.today.requests+' 次';
     $('#d4foot').textContent='本月 '+fmt(s.month.total)+' · '+money(s.month.cost); }
+  if (s.todayHourly) drawBars('#d4bars', s.todayHourly);
   $('#d4tag').textContent = s.scanning && !s.ready ? `统计中 ${s.progress||0}%` : s.ready ? '更新于 '+s.scannedAt : '暂无';
   $('#tSync').textContent = s.scanning ? `同步中 ${s.progress||0}%…` : s.ready ? '会话日志 · 同步于 '+s.scannedAt : '';
   $$('#tRange button').forEach(b=>b.classList.toggle('on',b.dataset.v===tRange));
@@ -1015,8 +1035,9 @@ $('#tRefresh').onclick=()=>loadStats(true).then(()=>toast('已同步'));
 async function loadLogs(){ try{ LOGS=await api('logs'); renderLogs(); renderDashLogs(); }catch(e){ toast(e.message,false); } }
 function renderLogs(){
   const acts=[...new Set(LOGS.map(l=>l.action))];
-  $('#lchips').innerHTML=[['all','全部',LOGS.length],['fail','失败',LOGS.filter(l=>!l.ok).length],...acts.map(a=>[a,a,LOGS.filter(l=>l.action===a).length])]
-    .map(([k,t,c])=>`<button class="chip ${lFilter===k?'on':''}" data-f="${esc(k)}">${esc(t)}<b>${c}</b></button>`).join('');
+  if (lFilter!=='all' && lFilter!=='fail' && !acts.includes(lFilter)) lFilter='all';
+  $('#lchips').innerHTML=[['all','全部操作',LOGS.length],['fail','只看失败',LOGS.filter(l=>!l.ok).length],...acts.map(a=>[a,a,LOGS.filter(l=>l.action===a).length])]
+    .map(([k,t,c])=>`<option value="${esc(k)}" ${lFilter===k?'selected':''}>${esc(t)}（${c}）</option>`).join('');
   const list=LOGS.filter(l=>lFilter==='all'||(lFilter==='fail'?!l.ok:l.action===lFilter));
   PG_RENDER.oplog=renderLogs; setTimeout(()=>{ $('#llistPg').innerHTML=pager('oplog', list.length); });
   $('#llist').innerHTML = list.length ? pageOf('oplog', list).map(l=>`<div class="tr g-log slim"><div class="num" style="font-size:12.5px;color:var(--muted)">${esc(l.t)}</div>
@@ -1026,11 +1047,19 @@ function renderLogs(){
       <div class="num" style="text-align:right;color:var(--muted);font-size:12.5px">${l.ms>=1000?(l.ms/1000).toFixed(1)+'s':l.ms+'ms'}</div></div>`).join('')
     : '<div class="empty"><div class="bigt">暂无日志</div>切换、添加、删除账号等操作都会记录在这里</div>';
 }
-$('#lchips').onclick=e=>{ const c=e.target.closest('.chip'); if(c){ lFilter=c.dataset.f; pgReset('oplog'); renderLogs(); } };
+$('#lchips').onchange=e=>{ lFilter=e.target.value; pgReset('oplog'); renderLogs(); };
 $('#lRefresh').onclick=()=>loadLogs().then(()=>toast('已刷新'));
 $('#lClear').onclick=async()=>{ if(await dialog({title:'清空操作日志？',text:'只清空本工具的操作记录，不影响任何账号和对话。',okText:'清空',danger:true})){ await api('logs/clear'); loadLogs(); toast('已清空'); } };
 
 // ---------- 设置 ----------
+// ---------- 菜单显示控制 ----------
+const MENUS=[['dash','仪表盘'],['acc','账号管理'],['sess','会话记录'],['stats','用量统计'],['logs','操作日志'],['clean','缓存清理'],['set','设置']];
+function hiddenMenus(){ return String((S&&S.settings&&S.settings.hiddenMenus)||'').split(',').filter(x=>x&&x!=='set'); }
+function applyMenus(){ const h=hiddenMenus(); $$('#nav button').forEach(b=>b.classList.toggle('hide', h.includes(b.dataset.p)));
+  if (h.includes(page)) go((MENUS.find(([id])=>!h.includes(id))||['set'])[0]); }
+document.addEventListener('click', async e=>{ const b=e.target.closest('[data-menu]'); if(!b||b.disabled) return;
+  const id=b.dataset.menu, name=(MENUS.find(m=>m[0]===id)||['',''])[1], h=hiddenMenus(), nh=h.includes(id)?h.filter(x=>x!==id):h.concat(id);
+  try{ S.settings=await api('settings/set',{key:'hiddenMenus',value:nh.join(',')}); applyMenus(); renderSettings(); toast((nh.includes(id)?'已隐藏「':'已显示「')+name+'」'); }catch(x){ toast(x.message,false); } });
 function renderSettings(){
   const st=S.settings||{};
   const row=(key,title,desc)=>`<div class="setting"><div class="t"><b>${title}</b><span>${desc}</span></div><button class="switch ${st[key]?'on':''}" data-key="${key}"></button></div>`;
@@ -1038,7 +1067,10 @@ function renderSettings(){
     + row('trayMode','关闭窗口后继续后台运行','窗口关掉后留在右下角托盘，右键托盘图标可快速切换账号')
     + row('notify','托盘通知','切换成功 / 失败时在右下角弹出提示')
     + `<div class="setting"><div class="t"><b>自动刷新全部数据</b><span>按间隔在后台刷新账号、余量、用量统计、会话记录和日志（右上角刷新按钮的绿点表示已开启）</span></div><select class="sel" id="autoAllSel">${[[60,'每 1 分钟（默认）'],[180,'每 3 分钟'],[300,'每 5 分钟'],[600,'每 10 分钟'],[0,'关闭']].map(([v,t])=>`<option value="${v}" ${v===AUTO_ALL?'selected':''}>${t}</option>`).join('')}</select></div>`
-    + `<div class="setting"><div class="t"><b>界面字号</b><span>整个应用的文字和界面大小，窗口较小时会在此基础上自动略缩</span></div><select class="sel" id="uiScaleSel">${[[0.9,'小 90%'],[1,'标准 100%'],[1.12,'大 112%'],[1.25,'更大 125%']].map(([v,t])=>`<option value="${v}" ${Math.abs(v-UI_SCALE)<0.001?'selected':''}>${t}</option>`).join('')}</select></div>`;
+    + `<div class="setting"><div class="t"><b>界面字号</b><span>整个应用的文字和界面大小，窗口较小时会在此基础上自动略缩</span></div><select class="sel" id="uiScaleSel">${[[0.9,'小 90%'],[1,'标准 100%'],[1.12,'大 112%'],[1.25,'更大 125%']].map(([v,t])=>`<option value="${v}" ${Math.abs(v-UI_SCALE)<0.001?'selected':''}>${t}</option>`).join('')}</select></div>`
+    + `<div class="setting" style="display:block"><div class="t"><b>显示的菜单</b><span>点一下切换显示 / 隐藏顶部菜单项；「设置」始终显示</span></div>
+       <div class="menuPick" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:12px">${MENUS.map(([id,name])=>{ const on=!hiddenMenus().includes(id), lock=id==='set';
+         return `<button class="chip ${on?'on':''}" data-menu="${id}" ${lock?'disabled title="设置不能隐藏"':''} style="border:1px solid var(--border);${lock?'opacity:.6;cursor:not-allowed':''}">${on?'✓ ':''}${name}</button>`; }).join('')}</div></div>`;
   $('#setUse').innerHTML = row('syncSessions','切换时同步会话记录','把上一个账号的全部会话记录带到新账号，切换后桌面 App 里还能看到、继续之前的对话')
     + row('autoMerge','自动合并所有账号的会话记录','启动时、每 5 分钟和切换账号后，自动把各账号的会话互相补齐（不关闭桌面 App；新增的会话在桌面 App 重新打开后显示）')
     + row('syncClientSettings','切换时同步客户端设置','把上一个账号里调好的字号（界面缩放）、主题、窗口大小与布局、MCP 配置带到新账号；不会带登录信息')
@@ -1236,7 +1268,9 @@ async function refreshAll(silent){
   if (refreshing) return; refreshing=true;
   const b=$('#refreshAll'); if (!silent) b.classList.add('spinning');
   try{
-    await Promise.all([refresh(true), loadStats(!silent), loadSessions(), loadLogs(), (SCAN && (!silent || page==='set')) ? doScan() : null]);
+    // 全部刷新也包含官方实时余量（30 秒内查过的不重复查）
+    const doneAll = silent ? ()=>{} : busy('正在刷新全部数据…');
+    try{ await Promise.all([refresh(true).then(()=>{ if (Date.now()-liveAt>=30e3) return refreshLive(true); }), loadStats(!silent), loadSessions(), loadLogs(), (SCAN && (!silent || page==='set')) ? doScan() : null]); } finally{ doneAll(); }
     lastAllAt=new Date().toTimeString().slice(0,8); updateRefreshTip();
     if (silent) return;
     // 等用量统计重新读完

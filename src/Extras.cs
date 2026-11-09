@@ -1,4 +1,4 @@
-// 设置、操作日志、用量配额、会话记录、Token 统计
+﻿// 设置、操作日志、用量配额、会话记录、Token 统计
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -34,6 +34,7 @@ namespace ClaudeSwitcher
             { "autoMerge", true },         // 自动合并所有账号的会话记录（启动时、每 5 分钟、切换后）
             { "syncClientSettings", true }, // 切换时把客户端设置（字号、主题、窗口布局等）带到新账号
             { "userName", "" },
+            { "hiddenMenus", "" },        // 隐藏的菜单，逗号分隔的页面 id（设置页不可隐藏）
             { "weeklyResets", "" }        // 手动设置的每周重置时间，JSON：{ 账号id: "5|07:00" }
         };
 

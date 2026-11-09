@@ -1,4 +1,4 @@
-// 用量统计：逐条读取 ~/.claude/projects 下的对话记录，按消息去重，支持时间范围 / 模型 / 账号筛选、费用估算和请求日志
+﻿// 用量统计：逐条读取 ~/.claude/projects 下的对话记录，按消息去重，支持时间范围 / 模型 / 账号筛选、费用估算和请求日志
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -315,6 +315,10 @@ namespace ClaudeSwitcher
 
             // 今日 / 本月（仪表盘用，不受筛选影响）
             res["today"] = Sum(src.Where(r => r.Ts >= now.Date), "today");
+            var todayRecs = src.Where(r => r.Ts >= now.Date).ToList();
+            var hourly = new List<long>();
+            for (int h = 0; h < 24; h++) { var hh = h; hourly.Add(h > now.Hour ? -1 : (long)Sum(todayRecs.Where(r => r.Ts.Hour == hh), "h")["total"]); }
+            res["todayHourly"] = hourly;
             res["month"] = Sum(src.Where(r => r.Ts >= new DateTime(now.Year, now.Month, 1)), "month");
             res["sessions"] = sel.Select(r => r.Session).Distinct().Count();
             return res;

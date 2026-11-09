@@ -648,7 +648,9 @@ namespace ClaudeSwitcher
         {
             var p = DesktopStore.Load().FirstOrDefault(x => x.Id == id);
             if (p == null) throw new Exception("找不到这个账号");
-            return LiveUsage.Query(p.Dir);
+            var r = LiveUsage.Query(p.Dir);
+            r["hist"] = LiveUsage.Record(p.Id, r);
+            return r;
         }
         static readonly object UsageLock = new object();
         static Dictionary<string, object> RunUsage(string configDir, string name)

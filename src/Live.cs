@@ -79,6 +79,34 @@ namespace ClaudeSwitcher
             return tok;
         }
 
+        static readonly object HistLock = new object();
+        static string HistPath { get { return Path.Combine(Settings.StateDir, "live-history.json"); } }
+        // 记录并返回这个账号最近 8 天的 [时间ms, 5H已用%, 7天已用%]
+        public static List<object> Record(string id, Dictionary<string, object> r)
+        {
+            lock (HistLock)
+            {
+                Dictionary<string, object> all = null;
+                try { if (File.Exists(HistPath)) all = Json.DeserializeObject(File.ReadAllText(HistPath)) as Dictionary<string, object>; } catch { }
+                if (all == null) all = new Dictionary<string, object>();
+                var list = new List<object>();
+                if (all.ContainsKey(id) && all[id] is object[]) list.AddRange((object[])all[id]);
+                long now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), cut = now - 8L * 86400000;
+                list.RemoveAll(x => !(x is object[]) || Convert.ToInt64(((object[])x)[0]) < cut);
+                var s = r["session"] as Dictionary<string, object>; var w = r["week"] as Dictionary<string, object>;
+                int su = s != null ? (int)s["used"] : -1, wu = w != null ? (int)w["used"] : -1;
+                var last = list.Count > 0 ? (object[])list[list.Count - 1] : null;
+                bool add = last == null || Convert.ToInt32(last[1]) != su || Convert.ToInt32(last[2]) != wu || now - Convert.ToInt64(last[0]) >= 600000;
+                if (add)
+                {
+                    list.Add(new object[] { now, su, wu });
+                    all[id] = list;
+                    try { Directory.CreateDirectory(Settings.StateDir); File.WriteAllText(HistPath, Json.Serialize(all)); } catch { }
+                }
+                return list;
+            }
+        }
+
         public static bool Available(string dir)
         {
             try { long exp; return ReadToken(dir, out exp) != null; } catch { return false; }
