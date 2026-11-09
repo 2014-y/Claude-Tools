@@ -593,7 +593,7 @@ function countdown(ms){ let s=Math.max(0,Math.floor((ms-Date.now())/1000)); cons
   return d>0 ? d+'天'+h+'时' : h+':'+p(m)+':'+p(x); }
 const resetHtml = ms => ms ? `<span class="rs" title="根据用量记录推算，可能比实际晚十几分钟">约 ${resetAt(ms)} 重置 · <b data-cd="${ms}">${countdown(ms)}</b></span>` : '';
 setInterval(()=>{ document.querySelectorAll('[data-cd]').forEach(e=>{ const ms=+e.dataset.cd; if (ms<=Date.now()) { e.textContent='已重置'; } else e.textContent=countdown(ms); }); }, 1000);
-const qbar = (label, left, reset, pid) => `<div class="qbar"><span>${label}</span><div class="track"><i class="${lvl(left)}" style="width:${left??0}%"></i></div><b class="num">${pctTxt(left)}</b>${reset?`<div class="rline"${pid?` data-wr="${esc(pid)}" title="点击设置每周重置时间"`:''}>${reset==='set'?'<span class="setwr">设置每周重置时间（照桌面 App「套餐使用限额」填写）</span>':resetHtml(reset)}${pid&&reset!=='set'?' <span class="setwr">修改</span>':''}</div>`:''}</div>`;
+const qbar = (label, left, reset, pid) => `<div class="qbar"><span>${label}</span><div class="track"><i class="${lvl(left)}" style="width:${left??0}%"></i></div><b class="num">${pctTxt(left)}</b>${reset?`<div class="rline"${pid?` data-wr="${esc(pid)}" title="点击设置每周重置时间"`:''}>${reset==='set'?'<span class="setwr">点此填写每周重置时间</span>':resetHtml(reset)}${pid&&reset!=='set'?' <span class="setwr">修改</span>':''}</div>`:''}</div>`;
 
 let offline=false;
 function setOffline(v){ if (offline===v) return; offline=v; $('#offline').classList.toggle('show', v); }
