@@ -306,7 +306,8 @@ html[lang="en"] .nav button{padding:7px 11px}
 .g-px{grid-template-columns:90px 150px minmax(200px,1fr) 220px 150px}
 .g-px .input{height:34px;width:64px;text-align:center}
 .g-px .sel{height:34px;width:100%}
-.box.pxcard{display:flex;flex-direction:row;align-items:center;gap:16px;text-align:left}
+.box.pxcard,.pxcard{display:flex;flex-direction:row;align-items:center;gap:16px;text-align:left}
+.pxsub{display:flex;gap:10px;margin:14px 0 0 62px}.pxsub .input{flex:1;height:40px}
 .pxcard .t{flex:1;min-width:0}.pxcard .t b{display:block;font-size:16px;margin-bottom:4px}.pxcard .t span{color:var(--muted);font-size:14px}
 .pxcard .bigic{width:46px;height:46px;border-radius:12px;display:grid;place-items:center;background:var(--pBg);color:var(--primary);flex:none}
 .pxcard .bigic svg{width:22px;height:22px}
@@ -1202,8 +1203,8 @@ function renderProxy(){
         <div class="ops"><button class="op" data-pa="test" title="检测">${ico('refresh')}</button><button class="op" data-pa="edit" title="编辑">${ico('edit')}</button><button class="op danger" data-pa="del" title="删除">${ico('trash')}</button></div></div>`).join('')
       : '<div class="empty">暂无代理<span class="sub" style="margin-top:6px">点「添加代理」或「导入」，支持 host:port、http://host:port、http://用户名:密码@host:port</span></div>'}</div>
   </div>
-  <div class="box pxcard"><div class="bigic">${ico('globe')}</div><div class="t"><b>全局上游代理 (Global Proxy)</b><span>代理池关闭或没有可用代理时，统一走这个代理</span>
-      ${PX.globalEnabled?`<div style="display:flex;gap:8px;margin-top:10px"><input class="input" id="pxGlobal" style="flex:1;height:36px" placeholder="例如 http://127.0.0.1:7890" value="${esc(PX.globalUrl||'')}"><button class="btn" id="pxGlobalTest">${ico('refresh')}检测</button></div>`:''}</div>${sw('globalEnabled')}</div>
+  <div class="box" style="display:block"><div class="pxcard"><div class="bigic">${ico('globe')}</div><div class="t"><b>全局上游代理 (Global Proxy)</b><span>代理池关闭或没有可用代理时，统一走这个代理</span></div>${sw('globalEnabled')}</div>
+      ${PX.globalEnabled?`<div class="pxsub"><input class="input" id="pxGlobal" placeholder="例如 http://127.0.0.1:7890" value="${esc(PX.globalUrl||'')}"><button class="btn" id="pxGlobalTest">${ico('refresh')}检测</button></div>`:''}</div>
   <div class="box pxcard"><div class="bigic" style="background:var(--gBg);color:var(--gold)">${ico('shield')}</div><div class="t"><b>自动小黑屋 (QoS)</b><span>当前：${PX.qos!==false?'已开启。额度用满（5 小时或每周达到 100%）的账号自动关进小黑屋，到重置时间自动放出；关着期间不参与推荐和「一键切换到余量最多的账号」':'已关闭'}</span></div>${sw('qos')}</div>
   <div class="box"><div class="box-h"><span class="ic">${ico('net')}</span>代理用在哪里</div>
     <div class="setting"><div class="t"><b>查询官方额度</b><span>本工具访问 api.anthropic.com 查询各账号额度时走代理</span></div>${sw('applyQuota')}</div>
