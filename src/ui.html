@@ -132,7 +132,7 @@ svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:2;stroke-l
 .tr.cur{background:linear-gradient(90deg,rgba(255,90,31,.10),transparent 45%)}
 .tr.cur::before{content:"";position:absolute;left:0;top:14px;bottom:14px;width:3px;border-radius:0 3px 3px 0;background:var(--grad)}
 .tr.slim{min-height:52px}
-.g-desk{grid-template-columns:minmax(230px,1.2fr) minmax(280px,1.3fr) 90px 130px 300px}
+.g-desk{grid-template-columns:minmax(240px,1.2fr) minmax(300px,1.4fr) 140px 300px}
 .g-cli{grid-template-columns:minmax(240px,1.5fr) 150px 380px}
 .g-sess{grid-template-columns:minmax(220px,1.6fr) 150px 150px minmax(160px,1fr) 130px 44px}
 .g-log{grid-template-columns:170px 140px minmax(200px,1fr) 90px 80px}
@@ -151,6 +151,8 @@ svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:2;stroke-l
 .curRow{display:flex;align-items:center;gap:24px;padding:6px 0}
 .qbar{display:grid;grid-template-columns:72px 1fr 52px;align-items:center;gap:10px;font-size:14px;color:var(--muted)}
 .qbar b{text-align:right;color:var(--text);font-size:14px}
+.rline{grid-column:2 / 4;font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:-6px}
+.rs b{font-family:"Cascadia Mono",Consolas,monospace;color:var(--gold);font-weight:700}
 .qbar .track{height:10px}
 .ellip{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
 .time{font-size:13px}.time small{display:block;color:var(--faint);font-size:12px}
@@ -260,8 +262,7 @@ svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:2;stroke-l
 ::-webkit-scrollbar{width:10px;height:10px}::-webkit-scrollbar-thumb{background:var(--border);border-radius:10px;border:3px solid var(--bg)}
 html.lt1250{
   .grid4{grid-template-columns:repeat(2,minmax(0,1fr))}
-  .g-desk{grid-template-columns:minmax(200px,1fr) minmax(240px,1.2fr) 130px 270px}
-  .g-desk>:nth-child(3){display:none}
+  .g-desk{grid-template-columns:minmax(220px,1fr) minmax(260px,1.2fr) 130px 270px}
   .g-sess{grid-template-columns:minmax(200px,1fr) 130px 120px 110px 44px}
   .g-sess>:nth-child(4){display:none}
 }
@@ -354,7 +355,7 @@ html.lt900{ .grid2{grid-template-columns:1fr} .app{padding:14px 16px} .kpis{disp
       <div class="box">
         <div class="box-h"><span class="ic g">${'clock'}</span>5 小时余量<span class="tag" id="d2tag"></span></div>
         <div class="big num" id="d2big">-</div>
-        <div class="sub">当前账号 · 5 小时滚动窗口剩余</div>
+        <div class="sub">当前账号 · 5 小时滚动窗口剩余 <span id="d2reset"></span></div>
         <div class="track"><i id="d2bar" style="width:0"></i></div>
         <div class="minis">
           <div class="mini"><span class="k">5 小时已使用</span><b class="num v" id="d2used">-</b></div>
@@ -364,7 +365,7 @@ html.lt900{ .grid2{grid-template-columns:1fr} .app{padding:14px 16px} .kpis{disp
       <div class="box">
         <div class="box-h"><span class="ic">${'cal'}</span>7 天余量<span class="tag" id="d3tag"></span></div>
         <div class="big num" id="d3big">-</div>
-        <div class="sub">当前账号 · 7 天周配额剩余</div>
+        <div class="sub">当前账号 · 7 天周配额剩余 <span id="d3reset"></span></div>
         <div class="track"><i id="d3bar" style="width:0"></i></div>
         <div class="minis">
           <div class="mini"><span class="k">本周已使用</span><b class="num v" id="d3used">-</b></div>
@@ -416,7 +417,7 @@ html.lt900{ .grid2{grid-template-columns:1fr} .app{padding:14px 16px} .kpis{disp
     </div>
     <div id="accDesk" style="display:contents">
       <div class="card fill">
-        <div class="thead g-desk"><div>账号</div><div>模型配额余量</div><div>会话</div><div>上次使用</div><div style="text-align:right">操作</div></div>
+        <div class="thead g-desk"><div>账号</div><div>模型配额余量</div><div>上次使用</div><div style="text-align:right">操作</div></div>
         <div class="tbody" id="dlist"></div>
       </div>
     </div>
@@ -569,12 +570,21 @@ const lvl = left => left == null ? 'na' : left < 20 ? 'bad' : left < 50 ? 'warn'
 function remain(q){
   if (!q) return {h5:null, d7:null, t:0};
   const age = Date.now() - q.t;
-  const h5 = q.fiveHour < 0 ? null : age > 5*3600e3 ? 100 : 100 - q.fiveHour;
-  const d7 = q.sevenDay < 0 ? null : age > 7*86400e3 ? 100 : 100 - q.sevenDay;
-  return {h5, d7, t:q.t};
+  const now = Date.now();
+  const r5 = q.fiveReset && q.fiveReset > now ? q.fiveReset : 0, r7 = q.sevenReset && q.sevenReset > now ? q.sevenReset : 0;
+  const h5 = q.fiveHour < 0 ? null : (age > 5*3600e3 || (q.fiveReset && q.fiveReset <= now)) ? 100 : 100 - q.fiveHour;
+  const d7 = q.sevenDay < 0 ? null : (age > 7*86400e3 || (q.sevenReset && q.sevenReset <= now)) ? 100 : 100 - q.sevenDay;
+  return {h5, d7, t:q.t, r5: h5===100 ? 0 : r5, r7: d7===100 ? 0 : r7};
 }
 const pctTxt = v => v == null ? '--' : v + '%';
-const qbar = (label, left) => `<div class="qbar"><span>${label}</span><div class="track"><i class="${lvl(left)}" style="width:${left??0}%"></i></div><b class="num">${pctTxt(left)}</b></div>`;
+// 重置时间与倒计时（推算值）
+function resetAt(ms){ const d=new Date(ms), p=n=>String(n).padStart(2,'0'), now=new Date();
+  return (d.toDateString()===now.toDateString() ? '' : (d.getMonth()+1)+'/'+d.getDate()+' ') + p(d.getHours())+':'+p(d.getMinutes()); }
+function countdown(ms){ let s=Math.max(0,Math.floor((ms-Date.now())/1000)); const d=Math.floor(s/86400); s%=86400; const h=Math.floor(s/3600), m=Math.floor(s%3600/60), x=s%60, p=n=>String(n).padStart(2,'0');
+  return d>0 ? d+'天'+h+'时' : h+':'+p(m)+':'+p(x); }
+const resetHtml = ms => ms ? `<span class="rs" title="根据用量记录推算，可能比实际晚十几分钟">约 ${resetAt(ms)} 重置 · <b data-cd="${ms}">${countdown(ms)}</b></span>` : '';
+setInterval(()=>{ document.querySelectorAll('[data-cd]').forEach(e=>{ const ms=+e.dataset.cd; if (ms<=Date.now()) { e.textContent='已重置'; } else e.textContent=countdown(ms); }); }, 1000);
+const qbar = (label, left, reset) => `<div class="qbar"><span>${label}</span><div class="track"><i class="${lvl(left)}" style="width:${left??0}%"></i></div><b class="num">${pctTxt(left)}</b>${reset?`<div class="rline">${resetHtml(reset)}</div>`:''}</div>`;
 
 let offline=false;
 function setOffline(v){ if (offline===v) return; offline=v; $('#offline').classList.toggle('show', v); }
@@ -654,6 +664,8 @@ function renderDash(){
   };
   setQ('#d2big','#d2bar','#d2tag','#d2foot',r.h5);
   setQ('#d3big','#d3bar','#d3tag','#d3foot',r.d7);
+  $('#d2reset').innerHTML = r.r5 ? '<br>'+resetHtml(r.r5) : '';
+  $('#d3reset').innerHTML = r.r7 ? '<br>'+resetHtml(r.r7) : '';
   $('#d3used').textContent = r.d7==null ? '--' : (100-r.d7)+'%';
   $('#d2used').textContent = r.h5==null ? '--' : (100-r.h5)+'%';
   const low = Math.min(r.h5??100, r.d7??100);
@@ -707,8 +719,7 @@ function renderDesk(){
       <div class="who">${avatar(p.email||p.id,p.remark)}<div style="min-width:0"><div class="name">${esc(M(p.remark))}</div>
         <div class="tags">${healthTag(p)}
         ${p.email?`<span class="tag gold">${esc(M(p.email))}</span>`:'<span class="tag gray">未识别邮箱</span>'}</div></div></div>
-      <div class="qbars" title="${r.t?'配额记录于 '+ago(r.t):'暂无配额记录'}">${qbar('5H 余量',r.h5)}${qbar('7天 余量',r.d7)}</div>
-      <div><span class="tag cream">${p.sessions} 条</span></div>
+      <div class="qbars rq" title="${r.t?'配额记录于 '+ago(r.t):'暂无配额记录'}">${qbar('5H 余量',r.h5,r.r5)}${qbar('7天 余量',r.d7,r.r7)}</div>
       <div class="time">${esc(d||'-')}<small>${esc(t||'')}</small></div>
       <div class="ops">${p.active
           ? `<button class="btn sm" data-a="launch" ${S.desktopRunning?'disabled':''}>${ico('launch')}${S.desktopRunning?'使用中':'打开 App'}</button>`

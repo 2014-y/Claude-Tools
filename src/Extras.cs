@@ -160,6 +160,7 @@ namespace ClaudeSwitcher
         public string Org;
         public int FiveHour = -1, SevenDay = -1;
         public long T;
+        public long FiveReset, SevenReset; // 推算的重置时间（毫秒时间戳，0 表示无法推算）
         public List<int[]> Recent = new List<int[]>(); // 最近 7 天的 7天用量走势（按小时取样）
     }
 
@@ -192,6 +193,18 @@ namespace ClaudeSwitcher
                 var q = new Quota { Org = last.org, T = last.t };
                 if (last.u.ContainsKey("fh") && last.u["fh"] != null) q.FiveHour = Convert.ToInt32(last.u["fh"]);
                 if (last.u.ContainsKey("sd") && last.u["sd"] != null) q.SevenDay = Convert.ToInt32(last.u["sd"]);
+                // 推算重置时间：找到本轮窗口里用量从 0 / 回落后开始上涨的那次记录，加上窗口时长
+                var mine = samples.Where(s => s.org == last.org).ToList();
+                Func<string, long, long> est = (key, window) =>
+                {
+                    Func<int, int> v = i => mine[i].u.ContainsKey(key) && mine[i].u[key] != null ? Convert.ToInt32(mine[i].u[key]) : 0;
+                    int n = mine.Count; if (n == 0 || v(n - 1) <= 0) return 0;
+                    int k = n - 1;
+                    while (k > 0 && v(k - 1) > 0 && v(k - 1) <= v(k) + 2 && mine[k].t - mine[k - 1].t < window) k--;
+                    return mine[k].t + window;
+                };
+                q.FiveReset = est("fh", 5L * 3600 * 1000);
+                q.SevenReset = est("sd", 7L * 24 * 3600 * 1000);
                 long from = last.t - 7L * 24 * 3600 * 1000;
                 long bucket = -1;
                 foreach (var s in samples.Where(s => s.org == last.org && s.t >= from))
