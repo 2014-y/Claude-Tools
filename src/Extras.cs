@@ -60,7 +60,15 @@ namespace ClaudeSwitcher
         {
             lock (Lock)
             {
-                if (k == "autoStart") { SetAutoStart(v is bool && (bool)v); return; }
+                if (k == "autoStart")
+                {
+                    bool on = v is bool && (bool)v;
+                    SetAutoStart(on);
+                    Data[k] = on;   // 记住用户的选择，之后每次启动都据此自检
+                    Directory.CreateDirectory(StateDir);
+                    File.WriteAllText(FilePath, Json.Serialize(Data), Encoding.UTF8);
+                    return;
+                }
                 if (!Defaults.ContainsKey(k)) throw new Exception("未知设置：" + k);
                 Data[k] = v;
                 Directory.CreateDirectory(StateDir);
@@ -95,7 +103,8 @@ namespace ClaudeSwitcher
         // 已开启开机启动时，按当前名称和 exe 路径重新登记（程序改名或挪位置后仍然有效）
         public static void RefreshAutoStart()
         {
-            try { if (AutoStart) SetAutoStart(true); } catch { }
+            // 用户开启过开机自启，但启动项被清掉或被系统禁用了：启动时自动补回
+            try { if (AutoStart || Bool("autoStart")) Set("autoStart", true); } catch { }
         }
 
         static void SetAutoStart(bool on)
@@ -103,7 +112,17 @@ namespace ClaudeSwitcher
             using (var k = Registry.CurrentUser.CreateSubKey(RunKey))
             {
                 if (k.GetValue(OldRunName) != null) k.DeleteValue(OldRunName);   // 清理旧名称
-                if (on) k.SetValue(RunName, "\"" + System.Windows.Forms.Application.ExecutablePath + "\" --tray");
+                if (on)
+                {
+                    k.SetValue(RunName, "\"" + System.Windows.Forms.Application.ExecutablePath + "\" --tray");
+                    // 清除任务管理器「启动」页里可能存在的「已禁用」标记
+                    try
+                    {
+                        using (var ap = Registry.CurrentUser.CreateSubKey(@"Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run"))
+                            ap.SetValue(RunName, new byte[] { 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 }, RegistryValueKind.Binary);
+                    }
+                    catch { }
+                }
                 else if (k.GetValue(RunName) != null) k.DeleteValue(RunName);
             }
         }
