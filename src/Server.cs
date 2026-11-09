@@ -24,9 +24,32 @@ namespace ClaudeSwitcher
         static SynchronizationContext ui;
         static bool windowEverOpened;
 
+        [System.Runtime.InteropServices.DllImport("kernel32.dll")] static extern bool IsProcessInJob(IntPtr process, IntPtr job, out bool result);
+
+        // 如果被别的程序（比如从 Claude 桌面 App 里的终端启动）放进了它的作业对象，
+        // 那个程序退出时会连带结束我们。这种情况下通过 WMI 以独立进程重新启动自己。
+        static bool RelaunchOutsideJob(string[] args)
+        {
+            try
+            {
+                if (args.Contains("--detached")) return false;
+                if (!string.IsNullOrEmpty(Environment.GetEnvironmentVariable("CLAUDE_SWITCHER_LOCALAPPDATA"))) return false; // 测试实例不处理
+                bool inJob;
+                if (!IsProcessInJob(Process.GetCurrentProcess().Handle, IntPtr.Zero, out inJob) || !inJob) return false;
+                var cmd = "\"" + Application.ExecutablePath + "\" " + string.Join(" ", args.Select(x => "\"" + x + "\"")) + " --detached";
+                using (var cls = new System.Management.ManagementClass("Win32_Process"))
+                {
+                    var r = cls.InvokeMethod("Create", new object[] { cmd, Path.GetDirectoryName(Application.ExecutablePath), null, null });
+                    return Convert.ToInt32(r) == 0;
+                }
+            }
+            catch { return false; }
+        }
+
         [STAThread]
         static void Main(string[] args)
         {
+            if (RelaunchOutsideJob(args)) return;
             bool first;
             // 测试实例用独立的单实例锁，不影响正在运行的正式版
             var isTest = !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("CLAUDE_SWITCHER_LOCALAPPDATA"));
@@ -43,6 +66,11 @@ namespace ClaudeSwitcher
                 try
                 {
                     Application.EnableVisualStyles();
+                    // 全局异常保护：出错只记日志，不让程序退出
+                    Application.SetUnhandledExceptionMode(UnhandledExceptionMode.CatchException);
+                    Application.ThreadException += (s, e) => OpLog.Add("程序异常", "界面线程", false, e.Exception.Message, 0);
+                    AppDomain.CurrentDomain.UnhandledException += (s, e) => OpLog.Add("程序异常", "后台线程", false, Convert.ToString(e.ExceptionObject), 0);
+                    System.Threading.Tasks.TaskScheduler.UnobservedTaskException += (s, e) => { e.SetObserved(); OpLog.Add("程序异常", "后台任务", false, e.Exception.Message, 0); };
                     Settings.RefreshAutoStart();
                     StartServer(urlFile);
                     if (Environment.GetEnvironmentVariable("CLAUDE_SWITCHER_NOBROWSER") == "1") { Thread.Sleep(Timeout.Infinite); return; }
