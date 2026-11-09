@@ -99,7 +99,8 @@ svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:2;stroke-l
 .grid4{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px}
 .grid2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
 .box{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);padding:20px;display:flex;flex-direction:column;gap:12px;min-width:0}
-.box-h{display:flex;align-items:center;gap:10px;font-weight:700;font-size:15px}
+.box-h{display:flex;align-items:center;gap:10px;font-weight:700;font-size:15px;white-space:nowrap;min-width:0}
+.box-h .tag{margin-left:auto;min-width:0;overflow:hidden;text-overflow:ellipsis;flex-shrink:1}
 .box-h .ic{width:34px;height:34px;border-radius:10px;display:grid;place-items:center;background:var(--pBg);color:var(--primary)}
 .box-h .ic.g{background:var(--gBg);color:var(--gold)}
 .box-h .tag{margin-left:auto}
@@ -769,7 +770,7 @@ function renderDash(){
   $('#d1bar').style.width = (withQ.length? healthy/withQ.length*100 : 0)+'%';
   $('#d1foot').textContent = S.desktopRunning ? '桌面 App 运行中' : '桌面 App 未运行';
   // 每个账号的官方余量（5H / 7 天）
-  const mini=(k,v)=>{ const u=v==null?null:100-v; return `<div style="display:grid;grid-template-columns:34px 1fr 38px;align-items:center;gap:8px;font-size:13.5px;color:var(--muted)"><span>${k}</span>
+  const mini=(k,v)=>{ const u=v==null?null:100-v; return `<div style="display:grid;grid-template-columns:48px 1fr 46px;align-items:center;gap:8px;font-size:13.5px;white-space:nowrap;color:var(--muted)"><span>${k}</span>
       <div class="track" style="margin:0;height:6px;border:none"><i class="${k==='5小时'?'q5':'q7'} ${u>=90?'hi':''}" style="width:${u??0}%"></i></div><b class="num" style="text-align:right;color:var(--muted);font-weight:600">${u==null?'--':u+'%'}</b></div>`; };
   $('#d1list').innerHTML = S.desktop.map(p=>{ const q=remain(p.quota,p.id);
     return `<div style="display:flex;gap:10px;align-items:center">${avatar(p.email||p.id,p.remark)}
