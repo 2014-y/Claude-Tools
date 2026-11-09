@@ -620,8 +620,8 @@ function liveCooldown(){ const b=document.querySelector('#dLive'); if(!b) return
   if (left>0) { b.disabled=true; b.innerHTML=ico('refresh')+left+' 秒后可再查'; }
   else { b.disabled=false; b.innerHTML=ico('refresh')+'查询官方余量'; } }
 setInterval(liveCooldown, 1000);
-// 某个账号还没有官方数据时，锁一解开就自动补查一次（有数据后不再自动查）
-setInterval(()=>{ if (!offline && S && S.desktop && lockLeft()===0 && !liveBusy && S.desktop.some(p=>p.live&&!DUSAGE[p.id])) refreshLive(true); }, 5000);
+// 锁一解开就自动再查一次（被官方限流时锁会按官方要求延长，不会狂查）
+setInterval(()=>{ if (!offline && S && S.desktop && lockLeft()===0 && !liveBusy && S.desktop.some(p=>p.live)) refreshLive(true); }, 5000);
 async function refreshLive(silent){
   if (liveBusy || lockLeft()>0) return; liveBusy=true; liveCooldown();
   const done=busy('正在查询官方实时余量…');
