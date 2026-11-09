@@ -132,7 +132,7 @@ svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:2;stroke-l
 .tr.cur{background:linear-gradient(90deg,rgba(255,90,31,.10),transparent 45%)}
 .tr.cur::before{content:"";position:absolute;left:0;top:14px;bottom:14px;width:3px;border-radius:0 3px 3px 0;background:var(--grad)}
 .tr.slim{min-height:52px}
-.g-desk{grid-template-columns:minmax(240px,1.2fr) minmax(300px,1.4fr) 140px 300px}
+.g-desk{grid-template-columns:minmax(240px,1.2fr) minmax(300px,1.6fr) 300px}
 .g-cli{grid-template-columns:minmax(200px,1fr) minmax(260px,1.4fr) max-content}
 .g-sess{grid-template-columns:minmax(220px,1.6fr) 150px 150px minmax(160px,1fr) 130px 44px}
 .g-log{grid-template-columns:170px 140px minmax(200px,1fr) 90px 80px}
@@ -260,12 +260,15 @@ svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:2;stroke-l
 .toast{display:flex;gap:10px;align-items:center;background:var(--panel);border:1px solid var(--border);box-shadow:var(--shadow);border-radius:12px;padding:12px 16px;min-width:260px;max-width:440px;animation:pop .16s ease-out;white-space:pre-line}
 .toast.ok svg{color:var(--green)} .toast.err svg{color:var(--red)}
 .hide{display:none!important}
+.busy{position:fixed;top:14px;left:50%;transform:translateX(-50%);z-index:49;display:none;align-items:center;gap:10px;padding:9px 18px;border-radius:999px;background:var(--panel);border:1px solid var(--border);box-shadow:var(--shadow);font-size:13px;font-weight:600;color:var(--text)}
+.busy.show{display:flex}
+.busy i{width:16px;height:16px;border-radius:50%;border:2px solid var(--border);border-top-color:var(--primary);animation:sp .8s linear infinite}
 .offline{position:fixed;top:14px;left:50%;transform:translateX(-50%);z-index:50;display:none;align-items:center;gap:10px;padding:10px 18px;border-radius:999px;background:var(--panel);border:1px solid rgba(255,77,79,.5);box-shadow:var(--shadow);color:#ff9a9a;font-size:13px;font-weight:600}
 .offline.show{display:flex}
 ::-webkit-scrollbar{width:10px;height:10px}::-webkit-scrollbar-thumb{background:var(--border);border-radius:10px;border:3px solid var(--bg)}
 html.lt1250{
   .grid4{grid-template-columns:repeat(2,minmax(0,1fr))}
-  .g-desk{grid-template-columns:minmax(220px,1fr) minmax(260px,1.2fr) 130px 270px}
+  .g-desk{grid-template-columns:minmax(220px,1fr) minmax(260px,1.4fr) 270px}
   .g-sess{grid-template-columns:minmax(200px,1fr) 130px 120px 110px 44px}
   .g-sess>:nth-child(4){display:none}
 }
@@ -420,7 +423,7 @@ html.lt900{ .grid2{grid-template-columns:1fr} .app{padding:14px 16px} .kpis{disp
     </div>
     <div id="accDesk" style="display:contents">
       <div class="card fill">
-        <div class="thead g-desk"><div>账号</div><div>额度余量 · 重置时间</div><div>上次使用</div><div style="text-align:right">操作</div></div>
+        <div class="thead g-desk"><div>账号</div><div>额度余量 · 重置时间</div><div style="text-align:right">操作</div></div>
         <div class="tbody" id="dlist"></div>
       </div>
     </div>
@@ -523,6 +526,7 @@ html.lt900{ .grid2{grid-template-columns:1fr} .app{padding:14px 16px} .kpis{disp
   <input id="mInput" class="hide">
   <div class="acts"><button class="btn" id="mCancel">取消</button><button class="btn main" id="mOk">确定</button></div>
 </div></div>
+<div class="busy" id="busy"><i></i><span id="busyText">加载中…</span></div>
 <div class="mask loading" id="loading"><div class="spin"></div><div id="loadingText">处理中…</div></div>
 <div class="toasts" id="toasts"></div>
 <div class="offline" id="offline"><span class="spin" style="width:16px;height:16px;border-width:2px"></span>连接已断开，正在重连…（如果一直这样，请从桌面或托盘重新打开 Claude Tools）</div>
@@ -589,27 +593,9 @@ const DUSAGE={};
 function rebuildLive(){
   LIVE={}; (S.desktop||[]).forEach(p=>{ const u=DUSAGE[p.id]; if(!u) return;
     LIVE[p.id]={ h5:u.session?Math.max(0,100-u.session.used):null, d7:u.week?Math.max(0,100-u.week.used):null,
-      r5:u.session?parseReset(u.session.resets):0, r7:u.week?parseReset(u.week.resets):0, at:u.at }; });
+      r5:u.session?u.session.resetAt:0, r7:u.week?u.week.resetAt:0, at:u.at }; });
 }
 let liveBusy=false, liveAt=0;
-// 连接实时余量：用同一个账号在官方登录页登录一次（独立的查询目录，不影响桌面 App 和你自己的终端）
-let connecting=null;
-async function connectLive(p){
-  if (connecting) return; connecting=p.id;
-  try{
-    try{ await api('desktop/liveLogin',{id:p.id}); }catch(x){ toast(x.message,false); return; }
-    toast('正在连接「'+M(p.remark)+'」的实时余量：请在打开的官方页面里用 '+M(p.email)+' 授权（只需一次）');
-    for (let i=0;i<72;i++){ await new Promise(r=>setTimeout(r,5000)); try{ await refresh(true); }catch(x){}
-      const q=S.desktop.find(x=>x.id===p.id); if (q&&q.live){ await refreshLive(true); toast('「'+M(q.remark)+'」已开启实时余量'); break; } }
-  } finally { connecting=null; }
-}
-// 默认实时：发现还没连接的账号，自动发起一次连接（每个账号只自动弹一次）
-function autoConnect(){
-  let asked={}; try{ asked=JSON.parse(localStorage.getItem('liveAsked2')||'{}'); }catch(e){}
-  const p=(S.desktop||[]).find(x=>x.email&&x.loggedIn&&!x.live&&!asked[x.id]); if(!p||connecting) return;
-  asked[p.id]=1; try{ localStorage.setItem('liveAsked2',JSON.stringify(asked)); }catch(e){}
-  connectLive(p);
-}
 // 手动查询：30 秒内只能点一次，按钮上显示倒计时
 let manualAt=0;
 function liveCooldown(){ const b=document.querySelector('#dLive'); if(!b) return; const left=Math.ceil((manualAt+30e3-Date.now())/1000);
@@ -617,12 +603,13 @@ function liveCooldown(){ const b=document.querySelector('#dLive'); if(!b) return
   else { b.disabled=false; b.innerHTML=ico('refresh')+'查询官方余量'; } }
 async function refreshLive(silent){
   if (liveBusy) return; liveBusy=true; const b=document.querySelector('#dLive'); if(b) b.disabled=true;
+  const done=busy('正在查询官方实时余量…');
   try{
     const list=(S.desktop||[]).filter(p=>p.live);
-    if (!list.length && !silent) toast('还没有连接实时余量的账号：点账号里的「连接实时余量」登录一次',false);
+    if (!list.length && !silent) toast('没有已登录的桌面账号',false);
     await Promise.all(list.map(p=>api('desktop/usage',{id:p.id}).then(r=>{ DUSAGE[p.id]=r; }).catch(e=>{ if(!silent) toast('「'+M(p.remark)+'」查询失败：'+e.message,false); })));
     rebuildLive(); liveAt=Date.now(); renderAll(); if(!silent && list.length) toast('已更新官方余量');
-  } finally { liveBusy=false; liveCooldown(); }
+  } finally { done(); liveBusy=false; liveCooldown(); }
 }
 function remain(q, id){
   const L=id&&LIVE[id], P=id&&(S.desktop||[]).find(x=>x.id===id);
@@ -667,6 +654,11 @@ function toast(msg, ok=true){
   el.innerHTML=ico(ok?'check':'x')+'<span>'+esc(msg)+'</span>';
   $('#toasts').appendChild(el); setTimeout(()=>el.remove(), ok?3200:6500);
 }
+// 顶部加载提示：任何加载/查询进行中都会显示，全部结束后自动消失
+const BUSY=new Map(); let busySeq=0;
+function busy(text){ const id=++busySeq; BUSY.set(id,text); drawBusy(); return ()=>{ BUSY.delete(id); drawBusy(); }; }
+function drawBusy(){ const v=[...BUSY.values()]; $('#busy').classList.toggle('show', v.length>0); if (v.length) $('#busyText').textContent=v[v.length-1]; }
+async function withBusy(text, fn){ const done=busy(text); try{ return await fn(); } finally{ done(); } }
 function loading(on, text){ $('#loadingText').textContent=text||'处理中…'; $('#loading').classList.toggle('show', !!on); }
 function dialog({title, text='', input=null, okText='确定', danger=false}){
   return new Promise(res=>{
@@ -692,7 +684,12 @@ function go(p){
   page=p; $$('#nav button').forEach(b=>b.classList.toggle('on', b.dataset.p===p));
   $$('.page').forEach(x=>x.classList.toggle('hide', x.id!=='p-'+p));
   try{localStorage.setItem('page',p)}catch(e){}
-  if (p==='sess') loadSessions(); if (p==='stats'||p==='dash') loadStats(); if (p==='logs'||p==='dash') loadLogs(); if (p==='set') { renderSettings(); renderScan(); doScan(); } if (p==='clean') { renderCC(); ccScan(); }
+  const NAMES={dash:'仪表盘',acc:'账号',sess:'会话记录',stats:'用量统计',logs:'操作日志',clean:'缓存清理',set:'设置'};
+  const jobs=[];
+  if (p==='sess') jobs.push(loadSessions()); if (p==='stats'||p==='dash') jobs.push(loadStats()); if (p==='logs'||p==='dash') jobs.push(loadLogs());
+  if (p==='set') { renderSettings(); renderScan(); jobs.push(doScan()); } if (p==='clean') { renderCC(); jobs.push(ccScan()); }
+  if (p==='acc'||p==='dash') jobs.push(refresh(true));
+  const done=busy('正在加载'+(NAMES[p]||'')+'…'); Promise.all(jobs.map(j=>Promise.resolve(j).catch(()=>{}))).finally(done);
 }
 $('#nav').onclick=e=>{ const b=e.target.closest('button'); if(b) go(b.dataset.p); };
 document.addEventListener('click', e=>{ const g=e.target.closest('[data-goto]'); if(g) go(g.dataset.goto); });
@@ -779,9 +776,9 @@ function renderDesk(){
     return `<div class="tr g-desk ${p.active?'cur':''}" data-id="${esc(p.id)}">
       <div class="who">${avatar(p.email||p.id,p.remark)}<div style="min-width:0"><div class="name">${esc(M(p.remark))}</div>
         <div class="tags">${healthTag(p)}
-        ${p.email?`<span class="tag gold">${esc(M(p.email))}</span>`:'<span class="tag gray">未识别邮箱</span>'}</div></div></div>
-      <div class="qbars rq" title="${r.live?'官方实时数据 · 查询于 '+esc(r.at||''):(p.live?'正在查询官方余量…':'还没连接实时余量，点下方按钮用这个账号登录一次即可')}">${qbar('5H 余量',r.h5,r.r5,'',r.live)}${qbar('7天 余量',r.d7,r.r7,r.live?'':p.id,r.live)}${p.live?'':`<button class="btn sm" data-a="liveLogin" style="margin-top:6px;width:auto;justify-self:start;align-self:flex-start" title="用同一个账号在官方登录页登录一次，之后每分钟自动查询官方实时余量（只需一次）">${ico('zap')}连接实时余量</button>`}</div>
-      <div class="time">${esc(d||'-')}<small>${esc(t||'')}</small></div>
+        ${p.email?`<span class="tag gold">${esc(M(p.email))}</span>`:'<span class="tag gray">未识别邮箱</span>'}</div>
+        <div class="sub" style="margin-top:6px;font-size:12px">上次使用 ${esc(d||'-')} ${esc(t||'')}</div></div></div>
+      <div class="qbars rq" title="${r.live?'官方实时数据 · 查询于 '+esc(r.at||''):(p.live?'正在查询官方余量…':'这个账号还没登录桌面 App')}">${qbar('5H 余量',r.h5,r.r5,'',r.live)}${qbar('7天 余量',r.d7,r.r7,r.live?'':p.id,r.live)}</div>
       <div class="ops">${p.active
           ? `<button class="btn sm" data-a="launch" ${S.desktopRunning?'disabled':''}>${ico('launch')}${S.desktopRunning?'使用中':'打开 App'}</button>`
           : `<button class="btn sm main" data-a="switch">${ico('swap')}切换到此账号</button>`}
@@ -1181,7 +1178,6 @@ $('#dlist').onclick=async e=>{
   else if (a==='launch') run('desktop/launch',{id},'正在打开 Claude…','已打开 Claude 桌面 App');
   else if (a==='rename'){ const v=await dialog({title:'修改备注', input:p.remark}); if(v) run('desktop/rename',{id,remark:v},'保存中…','已保存'); }
   else if (a==='open') api('desktop/open',{id}).catch(x=>toast(x.message,false));
-  else if (a==='liveLogin') connectLive(p);
   else if (a==='delete' && await dialog({title:'删除「'+M(p.remark)+'」？', text:'会删除这个账号保存的登录信息和它在桌面 App 里的会话记录，无法恢复。\n（~/.claude 里的对话记录不受影响）', okText:'删除', danger:true}))
     run('desktop/delete',{id},'删除中…','已删除');
 };
@@ -1252,7 +1248,8 @@ $('#refreshAll').onclick=()=>refreshAll(false);
 document.addEventListener('keydown', e=>{ if (e.key==='F5') { e.preventDefault(); refreshAll(false); } });
 setAutoAll(AUTO_ALL);
 // 官方余量：启动后查一次，之后每 1 分钟静默更新（由 Claude Code 自己用 /usage 查询，不影响正常使用）
-setInterval(()=>{ if (S && S.desktop && !offline) autoConnect(); if (S && S.desktop && S.desktop.some(p=>p.live) && !offline && Date.now()-liveAt>60e3) refreshLive(true); }, 10000);
+(function kick(){ if (S && S.desktop && S.desktop.length) refreshLive(true); else setTimeout(kick, 300); })();
+setInterval(()=>{ if (S && S.desktop && S.desktop.some(p=>p.live) && !offline && Date.now()-liveAt>60e3) refreshLive(true); }, 10000);
 
 // ---------- 自适应缩放：小于 1280×780 时整体略微缩小（最小 85%） ----------
 const BASE_W=1280, BASE_H=780;
@@ -1290,7 +1287,7 @@ async function refresh(silent){
 }
 try{ setTheme(localStorage.getItem('theme')||'dark'); }catch(e){ setTheme('dark'); }
 setAccSub('desk');
-refresh().then(()=>{ let p='dash'; try{ p=localStorage.getItem('page')||'dash'; }catch(e){} go(p); });
+withBusy('正在加载…', ()=>refresh()).then(()=>{ let p='dash'; try{ p=localStorage.getItem('page')||'dash'; }catch(e){} go(p); });
 // 窗口不可见（最小化 / 在后台）时暂停刷新，重新可见时立即刷新一次
 setInterval(()=>{ if(!document.hidden && !$('#loading').classList.contains('show') && !$('#modal').classList.contains('show')) refresh(true); }, 5000);
 document.addEventListener('visibilitychange', ()=>{ if(!document.hidden) { refresh(true); if(page==='dash'||page==='stats') loadStats(); } });

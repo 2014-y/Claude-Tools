@@ -486,7 +486,6 @@ namespace ClaudeSwitcher
                 case "cli/status": return CliStatus(true);
                 case "cli/usage": return CliUsage(S(a, "id"));
                 case "desktop/usage": return DesktopUsage(S(a, "id"));
-                case "desktop/liveLogin": Logged("连接实时余量", S(a, "id"), () => LiveLogin(S(a, "id"))); return null;
                 case "cli/install": Logged("安装 Claude Code", "官方安装脚本", InstallCli); return null;
                 case "openPath":
                     {
@@ -556,7 +555,7 @@ namespace ClaudeSwitcher
             var desktop = profiles.Select(p => new Dictionary<string, object> {
                 { "id", p.Id }, { "remark", p.Remark }, { "email", p.Email ?? "" }, { "active", p.Active },
                 { "lastUsed", p.LastUsed.ToString("yyyy/MM/dd HH:mm") }, { "sessions", p.Sessions }, { "dir", p.Dir }, { "loggedIn", p.LoggedIn },
-                { "quota", QuotaJson(QuotaReader.Read(p.Dir)) }, { "live", LiveSource(p) != null }
+                { "quota", QuotaJson(QuotaReader.Read(p.Dir)) }, { "live", LiveUsage.Available(p.Dir) }
             }).ToList();
             var cli = Store.Load().Select(c => new Dictionary<string, object> {
                 { "id", c.Folder }, { "remark", c.Remark }, { "email", c.Email ?? "" }, { "loggedIn", c.LoggedIn },
@@ -644,63 +643,12 @@ namespace ClaudeSwitcher
             return RunUsage(acc.IsDefault ? null : acc.Dir, acc.Remark);
         }
 
-        // 桌面账号的「查询通道」：工具私有的 Claude Code 配置目录，用同一个账号通过官方 claude auth login 登录一次
-        static string ProbeDir(string pid) { return Path.Combine(Settings.StateDir, "probe", pid); }
-        static string JsonEmail(string dir)
-        {
-            try
-            {
-                var f = Path.Combine(dir, ".claude.json"); if (!File.Exists(f)) return "";
-                var m = System.Text.RegularExpressions.Regex.Match(File.ReadAllText(f, Encoding.UTF8), "\"emailAddress\"\\s*:\\s*\"([^\"]+)\"");
-                return m.Success ? m.Groups[1].Value : "";
-            }
-            catch { return ""; }
-        }
-        // 返回可用于查询的配置目录（"" 表示默认 ~/.claude）；没有则返回 null
-        static string LiveSource(DesktopProfile p)
-        {
-            var email = (p.Email ?? "").Trim();
-            if (email.Length == 0) return null;
-            try
-            {
-                var c = Store.Load().FirstOrDefault(x => x.LoggedIn && string.Equals(x.Email, email, StringComparison.OrdinalIgnoreCase));
-                if (c != null) return c.IsDefault ? "" : c.Dir;
-            }
-            catch { }
-            var d = ProbeDir(p.Id);
-            if (File.Exists(Path.Combine(d, ".credentials.json")) && string.Equals(JsonEmail(d), email, StringComparison.OrdinalIgnoreCase)) return d;
-            return null;
-        }
+        // 桌面账号：用它自己已有的登录只读查询官方用量（见 Live.cs）
         static Dictionary<string, object> DesktopUsage(string id)
         {
             var p = DesktopStore.Load().FirstOrDefault(x => x.Id == id);
             if (p == null) throw new Exception("找不到这个账号");
-            var src = LiveSource(p);
-            if (src == null)
-            {
-                var d = ProbeDir(p.Id); var e = JsonEmail(d);
-                if (e.Length > 0 && !string.Equals(e, p.Email, StringComparison.OrdinalIgnoreCase))
-                    throw new Exception("查询通道登录的是 " + e + "，不是这个账号，请重新连接");
-                throw new Exception("NEED_LOGIN");
-            }
-            return RunUsage(src.Length == 0 ? null : src, p.Remark);
-        }
-        static void LiveLogin(string id)
-        {
-            var p = DesktopStore.Load().FirstOrDefault(x => x.Id == id);
-            if (p == null) throw new Exception("找不到这个账号");
-            if (string.IsNullOrEmpty(p.Email)) throw new Exception("还没识别到这个账号的邮箱，请先切换到它并打开一次桌面 App");
-            var st = CliStatus(false); if (!(bool)st["installed"]) st = CliStatus(true);
-            if (!(bool)st["installed"]) throw new Exception("需要先安装 Claude Code：到「账号管理 → 终端 Claude Code」点「一键安装」");
-            var d = ProbeDir(p.Id);
-            // 之前连到了别的账号或没登录完：清掉重来
-            if (Directory.Exists(d) && LiveSource(p) != d) { try { Directory.Delete(d, true); } catch { } }
-            Directory.CreateDirectory(d);
-            var mail = p.Email.Replace("\"", "");
-            var cmd = "title 连接实时余量 - " + mail + " && echo. && echo   请在打开的官方登录页里，用 " + mail + " 登录（和桌面 App 同一个账号）。 && echo   注意：如果浏览器里 claude.ai 当前登录的是别的账号，请先在网页里切换到 " + mail + " 再授权。 && echo   登录完成后回到 Claude Tools，余量会自动出现，本窗口可以关掉。 && echo. && \"" + (string)st["path"] + "\" auth login --claudeai --email " + mail;
-            var psi = new ProcessStartInfo("cmd.exe", "/k " + cmd) { UseShellExecute = false };
-            psi.EnvironmentVariables["CLAUDE_CONFIG_DIR"] = d;
-            Process.Start(psi);
+            return LiveUsage.Query(p.Dir);
         }
         static readonly object UsageLock = new object();
         static Dictionary<string, object> RunUsage(string configDir, string name)
