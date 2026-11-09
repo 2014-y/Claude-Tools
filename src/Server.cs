@@ -522,6 +522,7 @@ namespace ClaudeSwitcher
                         Logged("清理缓存", id == "" ? "全部已保存账号" : DesktopName(id), () => { freed = StorageScan.CleanCache(id); }, () => "释放 " + (freed / 1048576.0).ToString("0.0") + " MB");
                         return StorageScan.Scan();
                     }
+                case "i18n/s2t": return S2TMap();
                 case "logs": return OpLog.Read(500);
                 case "logs/clear": OpLog.Clear(); return null;
                 case "logs/add":
@@ -646,6 +647,21 @@ namespace ClaudeSwitcher
 
         // ---------- 官方实时余量 ----------
         // 让 Claude Code 自己执行 /usage（它自己处理登录令牌，本工具从不读取或解密任何令牌）
+        // 简体 -> 繁体字符对照表（用 Windows 自带的 LCMapStringEx，不需要额外数据）
+        [System.Runtime.InteropServices.DllImport("kernel32.dll", CharSet = System.Runtime.InteropServices.CharSet.Unicode)]
+        static extern int LCMapStringEx(string locale, uint flags, string src, int srcLen, StringBuilder dest, int destLen, IntPtr ver, IntPtr res, IntPtr p);
+        static Dictionary<string, string> s2t;
+        static object S2TMap()
+        {
+            if (s2t != null) return s2t;
+            var sb = new StringBuilder(); for (int c = 0x4E00; c <= 0x9FA5; c++) sb.Append((char)c);
+            var srcs = sb.ToString(); var dst = new StringBuilder(srcs.Length + 64);
+            int n = LCMapStringEx("zh-CN", 0x04000000, srcs, srcs.Length, dst, dst.Capacity, IntPtr.Zero, IntPtr.Zero, IntPtr.Zero);
+            var d = new Dictionary<string, string>(); var o = dst.ToString();
+            if (n == srcs.Length && o.Length >= srcs.Length) for (int i = 0; i < srcs.Length; i++) if (o[i] != srcs[i]) d[srcs[i].ToString()] = o[i].ToString();
+            s2t = d; return d;
+        }
+
         static Dictionary<string, object> CliUsage(string id)
         {
             var acc = Store.Load().FirstOrDefault(x => x.Folder == id);

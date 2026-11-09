@@ -128,7 +128,12 @@ namespace ClaudeSwitcher
                 if (!File.Exists(CachePath)) return;
                 var all = Json.DeserializeObject(File.ReadAllText(CachePath)) as Dictionary<string, object>;
                 if (all == null) return;
-                foreach (var kv in all) { var d = kv.Value as Dictionary<string, object>; if (d != null) Last[kv.Key] = d; }
+                foreach (var kv in all)
+                {
+                    var d = kv.Value as Dictionary<string, object>; if (d == null) continue;
+                    if (d.ContainsKey("lockUntil")) { try { Backoff[kv.Key] = DateTimeOffset.FromUnixTimeMilliseconds(Convert.ToInt64(d["lockUntil"])).LocalDateTime; } catch { } d.Remove("lockUntil"); }
+                    if (d.ContainsKey("session")) Last[kv.Key] = d;
+                }
             }
             catch { }
         }
@@ -152,18 +157,19 @@ namespace ClaudeSwitcher
             lock (HistLock)
             {
                 Backoff[id] = next;
-                if (r != null)
+                if (r != null) { r["hist"] = Record(id, r); Last[id] = r; LastOk[id] = DateTime.Now; }
+                try
                 {
-                    r["hist"] = Record(id, r);
-                    Last[id] = r; LastOk[id] = DateTime.Now;
-                    try
+                    var save = new Dictionary<string, object>();
+                    foreach (var kv in Last) { var c = new Dictionary<string, object>(kv.Value); c.Remove("hist"); c.Remove("error"); c.Remove("nextAt"); save[kv.Key] = c; }
+                    foreach (var kv in Backoff)
                     {
-                        var save = new Dictionary<string, object>();
-                        foreach (var kv in Last) { var c = new Dictionary<string, object>(kv.Value); c.Remove("hist"); c.Remove("error"); c.Remove("nextAt"); save[kv.Key] = c; }
-                        File.WriteAllText(CachePath, Json.Serialize(save));
+                        if (!save.ContainsKey(kv.Key)) save[kv.Key] = new Dictionary<string, object>();
+                        ((Dictionary<string, object>)save[kv.Key])["lockUntil"] = new DateTimeOffset(kv.Value).ToUnixTimeMilliseconds();
                     }
-                    catch { }
+                    File.WriteAllText(CachePath, Json.Serialize(save));
                 }
+                catch { }
                 return Answer(id, err, next);
             }
         }
