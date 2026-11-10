@@ -27,9 +27,10 @@ function setFont(f){ UI_FONT=f; try{localStorage.setItem('uiFont',f)}catch(e){} 
 :root{
   --bg:#0d0b0a; --panel:#161210; --panel2:#1d1815; --rowHover:#211b17;
   --border:#2e2621; --text:#f4ece6; --muted:#bcaea2; --faint:#6e625a;
-  --primary:#ff5a1f; --primary2:#e8470f; --grad:linear-gradient(135deg,#ff7a33,#f23d0f);
-  --gold:#ffc93c; --cream:#ffe7a8;
-  --pBg:rgba(255,90,31,.14); --gBg:rgba(255,201,60,.13); --cBg:rgba(255,231,168,.10);
+  --primary:#ff5a1f; --primary2:#e8470f; --g1:#ff7a33; --g2:#f23d0f; --grad:linear-gradient(135deg,var(--g1),var(--g2));
+  --p-rgb:255,90,31; --a-rgb:255,201,60; --ptext:#ffb48f;
+  --gold:#ffc93c; --gold2:#ffd76a; --gold3:#ffb21f; --goldInk:#3a1d05; --cream:#ffe7a8;
+  --pBg:rgba(var(--p-rgb),.14); --gBg:rgba(var(--a-rgb),.13); --cBg:rgba(255,231,168,.10);
   --green:#3ccf7a; --greenBg:rgba(60,207,122,.13); --red:#ff4d4f; --redBg:rgba(255,77,79,.13);
   --yellow:#ffc93c; --yellowBg:rgba(255,201,60,.13);
   --shadow:0 10px 40px rgba(0,0,0,.5); --radius:16px;
@@ -37,7 +38,7 @@ function setFont(f){ UI_FONT=f; try{localStorage.setItem('uiFont',f)}catch(e){} 
 [data-theme=light]{
   --bg:#fbf6f2; --panel:#ffffff; --panel2:#fff7f1; --rowHover:#fff3ea;
   --border:#f0e2d7; --text:#2a1a12; --muted:#7c6a5e; --faint:#b3a294; --shadow:0 10px 30px rgba(120,60,20,.12);
-  --gold:#d99a00; --cream:#b7791f; --gBg:rgba(255,201,60,.2); --cBg:rgba(255,190,90,.14);
+  --gold:#d99a00; --gold2:#ffd76a; --gold3:#ffb21f; --cream:#b7791f; --gBg:rgba(var(--a-rgb),.2); --cBg:rgba(255,190,90,.14); --ptext:#c2410c;
 }
 *{box-sizing:border-box;-webkit-user-select:none;user-select:none}
 input,textarea{-webkit-user-select:text;user-select:text}
@@ -46,7 +47,7 @@ img{-webkit-user-drag:none}
 @font-face{font-family:"PortalCute";src:url("/font.woff2") format("woff2");font-weight:400;font-display:swap}
 html,body{margin:0;height:100%}
 body{background:var(--bg);color:var(--text);font:15px/1.5 "PortalCute","Segoe UI","Microsoft YaHei UI","PingFang SC",sans-serif;-webkit-font-smoothing:antialiased;overflow:hidden}
-body::before{content:"";position:fixed;inset:-30% -10% auto auto;width:60vw;height:60vw;background:radial-gradient(circle,rgba(255,90,31,.10),transparent 60%);pointer-events:none}
+body::before{content:"";position:fixed;inset:-30% -10% auto auto;width:60vw;height:60vw;background:radial-gradient(circle,rgba(var(--p-rgb),.10),transparent 60%);pointer-events:none}
 button{font:inherit;color:inherit;cursor:pointer;border:0;background:none}
 input,select,textarea{font:inherit;color:inherit}
 svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex:none}
@@ -55,21 +56,21 @@ svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:2;stroke-l
 
 .top{display:flex;align-items:center;gap:20px}
 .brand{display:flex;align-items:center;gap:10px;font-weight:800;font-size:19px;white-space:nowrap}
-.brand img{width:36px;height:36px;border-radius:10px;box-shadow:0 4px 16px rgba(255,90,31,.45)}
+.brand img{width:36px;height:36px;border-radius:10px;box-shadow:0 4px 16px rgba(var(--p-rgb),.45)}
 .brand span{background:linear-gradient(90deg,var(--cream),var(--primary));-webkit-background-clip:text;background-clip:text;color:transparent}
 .nav{display:flex;gap:2px;background:var(--panel);border:1px solid var(--border);padding:5px;border-radius:999px;overflow:hidden;flex:none}
 .nav::-webkit-scrollbar{display:none}
 .nav button{padding:7px 14px;border-radius:999px;color:var(--muted);font-weight:600;white-space:nowrap;transition:.15s;display:inline-flex;align-items:center;gap:6px}
 .nav button svg{width:16px;height:16px;flex:none}
 .nav button:hover{color:var(--text)}
-.nav button.on{background:var(--grad);color:#fff;box-shadow:0 4px 14px rgba(255,90,31,.35)}
+.nav button.on{background:var(--grad);color:#fff;box-shadow:0 4px 14px rgba(var(--p-rgb),.35)}
 .spacer{flex:1}
 .iconbtn{width:38px;height:38px;border-radius:50%;display:grid;place-items:center;background:var(--panel);border:1px solid var(--border);color:var(--muted);transition:.15s;flex:none}
 .iconbtn:hover{color:var(--text);border-color:var(--faint)}
 .iconbtn.spinning svg{animation:sp .8s linear infinite}
 .iconbtn.auto{position:relative}
 .iconbtn.auto::after{content:"";position:absolute;top:6px;right:6px;width:7px;height:7px;border-radius:50%;background:var(--green);box-shadow:0 0 0 2px var(--panel)}
-.iconbtn.on{color:var(--primary);border-color:rgba(255,90,31,.45);background:var(--pBg)}
+.iconbtn.on{color:var(--primary);border-color:rgba(var(--p-rgb),.45);background:var(--pBg)}
 .pill{display:flex;align-items:center;gap:8px;padding:7px 14px;border-radius:999px;background:var(--panel);border:1px solid var(--border);color:var(--muted);font-size:14px;white-space:nowrap}
 .dot{width:8px;height:8px;border-radius:50%;background:var(--faint);flex:none}
 .dot.on{background:var(--green);box-shadow:0 0 0 3px var(--greenBg)}
@@ -86,14 +87,14 @@ svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:2;stroke-l
 .chip.on b{background:var(--primary);border-color:var(--primary);color:#fff}
 .btn{height:40px;padding:0 16px;border-radius:10px;display:inline-flex;align-items:center;justify-content:center;gap:8px;font-weight:600;white-space:nowrap;transition:.15s;border:1px solid var(--border);background:var(--panel)}
 .btn:hover{border-color:var(--faint)}
-.btn.main{background:var(--grad);border-color:transparent;color:#fff;box-shadow:0 4px 14px rgba(255,90,31,.3)}
+.btn.main{background:var(--grad);border-color:transparent;color:#fff;box-shadow:0 4px 14px rgba(var(--p-rgb),.3)}
 .btn.main:hover{filter:brightness(1.08)}
-.btn.gold{background:linear-gradient(135deg,#ffd76a,#ffb21f);border-color:transparent;color:#3a1d05}
+.btn.gold{background:linear-gradient(135deg,var(--gold2),var(--gold3));border-color:transparent;color:var(--goldInk)}
 .btn.red{background:var(--red);border-color:var(--red);color:#fff}
 .btn.sm{height:32px;padding:0 12px;font-size:14px;border-radius:8px}
 .btn[disabled]{opacity:.45;pointer-events:none}
-.notice{display:flex;align-items:center;gap:10px;padding:10px 14px;border-radius:10px;background:var(--pBg);color:#ffb48f;font-size:14px;border:1px solid rgba(255,90,31,.28)}
-[data-theme=light] .notice{color:#c2410c}
+.notice{display:flex;align-items:center;gap:10px;padding:10px 14px;border-radius:10px;background:var(--pBg);color:var(--ptext);font-size:14px;border:1px solid rgba(var(--p-rgb),.28)}
+
 
 .hello{display:flex;align-items:flex-end;gap:20px;flex-wrap:wrap}
 .hello h1{margin:0;font-size:27px;font-weight:800}
@@ -125,7 +126,7 @@ svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:2;stroke-l
 .mini .v{font-size:20px;font-weight:800;color:var(--text);white-space:nowrap;line-height:1.2}
 .box-f{margin-top:auto;padding-top:12px;border-top:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;color:var(--muted);font-size:14px}
 .rec{display:flex;align-items:center;gap:14px;padding:12px 14px;border-radius:12px;background:var(--panel2);border:1px solid var(--border)}
-.rec.best{background:linear-gradient(90deg,rgba(255,201,60,.12),transparent);border-color:rgba(255,201,60,.35)}
+.rec.best{background:linear-gradient(90deg,rgba(var(--a-rgb),.12),transparent);border-color:rgba(var(--a-rgb),.35)}
 .rec .t{flex:1;min-width:0}
 .rec .t div:first-child{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .rec .t div:first-child .tag{margin-left:8px}
@@ -140,7 +141,7 @@ svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:2;stroke-l
 .tbody{flex:1;overflow:auto}
 .tr{min-height:74px;border-bottom:1px solid var(--border);transition:background .12s;position:relative}
 .tr:hover{background:var(--rowHover)}
-.tr.cur{background:linear-gradient(90deg,rgba(255,90,31,.10),transparent 45%)}
+.tr.cur{background:linear-gradient(90deg,rgba(var(--p-rgb),.10),transparent 45%)}
 .tr.cur::before{content:"";position:absolute;left:0;top:14px;bottom:14px;width:3px;border-radius:0 3px 3px 0;background:var(--grad)}
 .tr.slim{min-height:52px}
 .g-desk{grid-template-columns:minmax(240px,1.2fr) minmax(300px,1.6fr) 300px}
@@ -224,7 +225,7 @@ svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:2;stroke-l
 .cci:hover{color:var(--primary)}
 .cci .ellip{flex:1}
 .cci b{min-width:100px;text-align:right}
-.ccg input{accent-color:#ff5a1f;width:16px;height:16px}
+.ccg input{accent-color:var(--primary);width:16px;height:16px}
 .btn.spinning svg{animation:sp .8s linear infinite}
 .tbl{width:100%;border-collapse:collapse;font-size:14px}
 .tbl th{position:sticky;top:0;background:var(--panel);color:var(--muted);font-weight:600;text-align:left;padding:10px 14px;border-bottom:1px solid var(--border);white-space:nowrap}
@@ -302,7 +303,7 @@ html[lang="en"] .nav button{padding:7px 11px}
 .pxleft .sepv{width:1px;height:22px;background:var(--border)}
 .pxleft .input{width:76px;height:34px;text-align:center}
 .pxleft .sel{height:34px}
-.pxstate{text-align:center;font-weight:700;letter-spacing:3px;font-size:13.5px;padding:9px;border-radius:10px 10px 0 0;background:rgba(255,178,31,.08);color:#d99a00;border:1px solid var(--border);border-bottom:0}
+.pxstate{text-align:center;font-weight:700;letter-spacing:3px;font-size:13.5px;padding:9px;border-radius:10px 10px 0 0;background:rgba(var(--a-rgb),.08);color:var(--gold);border:1px solid var(--border);border-bottom:0}
 .pxstate.on{background:rgba(60,207,122,.10);color:var(--green)}
 .g-px{grid-template-columns:90px 150px minmax(200px,1fr) 220px 150px}
 .g-px .input{height:34px;width:64px;text-align:center}
@@ -515,7 +516,7 @@ html.lt900{ .grid2{grid-template-columns:1fr} .app{padding:14px 16px} .kpis{disp
       <label class="search"><svg><use href="#i-search"/></svg><input id="sq" placeholder="搜索标题 / 目录 / 模型…"></label>
       <select class="sel" id="schips" title="按账号筛选"></select>
       <div class="spacer"></div>
-      <label class="pill" style="cursor:pointer;height:40px;box-sizing:border-box;border-radius:10px"><input type="checkbox" id="sArch" style="margin:0;accent-color:#ff5a1f"> 显示已归档</label>
+      <label class="pill" style="cursor:pointer;height:40px;box-sizing:border-box;border-radius:10px"><input type="checkbox" id="sArch" style="margin:0;accent-color:var(--primary)"> 显示已归档</label>
       <button class="btn" id="sRefresh">${'refresh'}刷新</button>
       <button class="btn main" id="sMerge">${'swap'}合并所有账号的会话记录</button>
     </div>
@@ -614,7 +615,8 @@ const $$ = s => [...document.querySelectorAll(s)];
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const ico = n => `<svg><use href="#i-${n}"/></svg>`;
 document.body.innerHTML = document.body.innerHTML.replace(/\$\{'([a-z]+)'\}/g, (_, n) => ico(n));
-const CH = ['#ff5a1f','#ffc93c','#ffe7a8','#ff9a5c']; // 输入 输出 缓存读 缓存写
+let CH = ['#ff5a1f','#ffc93c','#ffe7a8','#ff9a5c']; // 输入 输出 缓存读 缓存写（随主题色变化，见 applyAccent）
+let PAL = {g1:'#ff7a33', g2:'#f23d0f', p:'#ff5a1f', a:'#ffc93c', a2:'#ffd76a', a3:'#ffb21f', soft:'#ffb36b'};
 
 let S = {desktop:[], cli:[], recent:[], settings:{}}, SESS = [], STATS = null, LOGS = [];
 let page = 'dash', accSub = 'desk', sFilter = 'all', lFilter = 'all';
@@ -639,7 +641,7 @@ function maskEmail(e){
   return user + '@' + host[0] + '***.' + parts.join('.');
 }
 const M = s => masked ? String(s ?? '').replace(/[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}/g, maskEmail) : String(s ?? '');
-const COLORS = [['#ff7a33','#f23d0f'],['#ffd76a','#ff8a1f'],['#ff9a5c','#e8470f'],['#ffb347','#ff5a1f'],['#ff6a3d','#d9360b'],['#ffc93c','#ff6a2b']];
+let COLORS = [['#ff7a33','#f23d0f'],['#ffd76a','#ff8a1f'],['#ff9a5c','#e8470f'],['#ffb347','#ff5a1f'],['#ff6a3d','#d9360b'],['#ffc93c','#ff6a2b']];
 function avatar(seed, text){
   let h=0; for (const c of String(seed)) h=(h*31+c.charCodeAt(0))>>>0;
   const [a,b]=COLORS[h%COLORS.length];
@@ -811,14 +813,14 @@ function drawSpark(sel, tipSel, hist, idx, span, label){
   xy.push([W, xy[xy.length-1][1]]);
   const line=xy.map((p,i)=>(i?'L':'M')+p[0].toFixed(1)+','+p[1].toFixed(1)).join('');
   const gid='g'+sel.slice(1);
-  svg.innerHTML=`<defs><linearGradient id="${gid}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ff5a1f" stop-opacity=".45"/><stop offset="1" stop-color="#ffc93c" stop-opacity="0"/></linearGradient></defs>
-    <path d="${line}L${W},${H}L0,${H}Z" fill="url(#${gid})" stroke="none"/><path d="${line}" stroke="#ff7a33" stroke-width="2" fill="none" vector-effect="non-scaling-stroke"/>`;
+  svg.innerHTML=`<defs><linearGradient id="${gid}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${PAL.p}" stop-opacity=".45"/><stop offset="1" stop-color="${PAL.a}" stop-opacity="0"/></linearGradient></defs>
+    <path d="${line}L${W},${H}L0,${H}Z" fill="url(#${gid})" stroke="none"/><path d="${line}" stroke="${PAL.g1}" stroke-width="2" fill="none" vector-effect="non-scaling-stroke"/>`;
   $(tipSel).textContent = label+'（官方数据）';
 }
 function drawBars(sel, vals){
   const svg=$(sel), W=300, H=46, n=vals.length, max=Math.max(1,...vals), bw=W/n;
   svg.innerHTML = vals.map((v,i)=> v<0 ? `<rect x="${(i*bw+1).toFixed(1)}" y="${H-2}" width="${(bw-2).toFixed(1)}" height="2" rx="1" fill="var(--border)"/>`
-    : `<rect x="${(i*bw+1).toFixed(1)}" y="${(H-Math.max(2,v/max*(H-2))).toFixed(1)}" width="${(bw-2).toFixed(1)}" height="${Math.max(2,v/max*(H-2)).toFixed(1)}" rx="1.5" fill="${i===new Date().getHours()?'#ff7a33':'#ffb36b'}"><title>${String(i).padStart(2,'0')}:00 · ${fmt(v)}</title></rect>`).join('');
+    : `<rect x="${(i*bw+1).toFixed(1)}" y="${(H-Math.max(2,v/max*(H-2))).toFixed(1)}" width="${(bw-2).toFixed(1)}" height="${Math.max(2,v/max*(H-2)).toFixed(1)}" rx="1.5" fill="${i===new Date().getHours()?PAL.g1:PAL.soft}"><title>${String(i).padStart(2,'0')}:00 · ${fmt(v)}</title></rect>`).join('');
 }
 function renderDash(){
   const cur=S.desktop.find(p=>p.active), n=S.desktop.length;
@@ -1053,12 +1055,12 @@ function renderStats(){
   const fmtV=v=> tMetric==='cost'?money(v) : tMetric==='requests'?Math.round(v).toLocaleString() : fmt(v);
   $('#tY').innerHTML=[1,.5,0].map(f=>`<span>${fmtV(max*f)}</span>`).join('');
   if (tMetric==='tokens'){
-    $('#tLegend').innerHTML='<span><i style="background:#ff5a1f"></i>新增输入</span><span><i style="background:#ffc93c"></i>输出</span><span><i style="background:#ffe7a8"></i>缓存命中</span><span><i style="background:#ff9a5c"></i>缓存创建</span>';
+    $('#tLegend').innerHTML=`<span><i style="background:${CH[0]}"></i>新增输入</span><span><i style="background:${CH[1]}"></i>输出</span><span><i style="background:${CH[2]}"></i>缓存命中</span><span><i style="background:${CH[3]}"></i>缓存创建</span>`;
     $('#tChart').innerHTML = tr.map((d,i)=>{ const parts=[d.input,d.output,d.cacheRead,d.cacheWrite];
       return `<div class="col" data-i="${i}" style="height:${Math.max(1,d.total/max*100)}%">${parts.map((v,j)=>`<i style="height:${d.total?v/d.total*100:0}%;background:${CH[j]}"></i>`).join('')}</div>`; }).join('');
   } else {
-    $('#tLegend').innerHTML = tMetric==='cost' ? '<span><i style="background:#ffc93c"></i>成本（美元）</span>' : '<span><i style="background:#ff5a1f"></i>请求数</span>';
-    const c = tMetric==='cost' ? 'linear-gradient(180deg,#ffd76a,#ffb21f)' : 'linear-gradient(180deg,#ff7a33,#f23d0f)';
+    $('#tLegend').innerHTML = tMetric==='cost' ? `<span><i style="background:${PAL.a}"></i>成本（美元）</span>` : `<span><i style="background:${PAL.p}"></i>请求数</span>`;
+    const c = tMetric==='cost' ? `linear-gradient(180deg,${PAL.a2},${PAL.a3})` : `linear-gradient(180deg,${PAL.g1},${PAL.g2})`;
     $('#tChart').innerHTML = tr.map((d,i)=>`<div class="col" data-i="${i}" style="height:${Math.max(1,val(d)/max*100)}%;background:${c}"></div>`).join('');
   }
   const step=Math.ceil(tr.length/10);
@@ -1445,24 +1447,53 @@ $('#clist').onclick=async e=>{
 };
 
 // ---------- 主题 / 脱敏 ----------
-function setTheme(t){ document.documentElement.dataset.theme=t; $('#themeBtn').innerHTML=ico(t==='dark'?'sun':'moon'); try{localStorage.setItem('theme',t)}catch(e){} try{ api('ui/theme',{dark:t==='dark'?'1':'0'}).catch(()=>{}); }catch(e){} }
+function setTheme(t){ document.documentElement.dataset.theme=t; try{ if (ACCENT_OK) applyAccent(ACCENT); }catch(e){} $('#themeBtn').innerHTML=ico(t==='dark'?'sun':'moon'); try{localStorage.setItem('theme',t)}catch(e){} try{ api('ui/theme',{dark:t==='dark'?'1':'0'}).catch(()=>{}); }catch(e){} }
 // 外观模式：dark / light / system（跟随 Windows）
 let THEME_MODE='dark'; try{ THEME_MODE=localStorage.getItem('themeMode')||localStorage.getItem('theme')||'dark'; }catch(e){}
 const darkMQ=window.matchMedia('(prefers-color-scheme: dark)');
 function applyMode(m){ THEME_MODE=m; try{localStorage.setItem('themeMode',m)}catch(e){} setTheme(m==='system' ? (darkMQ.matches?'dark':'light') : m); }
 darkMQ.addEventListener && darkMQ.addEventListener('change', ()=>{ if (THEME_MODE==='system') applyMode('system'); });
 // 主题色
+// 每个主题色是一整套配色：主色、点缀色、图表色、头像色，以及带同色调的背景 / 面板 / 边框 / 文字
+// h=色相 a/aL=点缀色（深色 / 浅色模式） cr/crL=浅点缀色 ink=点缀色按钮上的文字
 const ACCENTS=[
-  {id:'orange', name:'橙红（默认）', p:'#ff5a1f', p2:'#e8470f', g1:'#ff7a33', g2:'#f23d0f', bg:'rgba(255,90,31,.14)'},
-  {id:'blue',   name:'天蓝', p:'#3b82f6', p2:'#2563eb', g1:'#60a5fa', g2:'#2563eb', bg:'rgba(59,130,246,.16)'},
-  {id:'violet', name:'紫罗兰', p:'#8b5cf6', p2:'#7c3aed', g1:'#a78bfa', g2:'#7c3aed', bg:'rgba(139,92,246,.16)'},
-  {id:'green',  name:'翠绿', p:'#10b981', p2:'#059669', g1:'#34d399', g2:'#059669', bg:'rgba(16,185,129,.16)'},
-  {id:'pink',   name:'樱粉', p:'#ec4899', p2:'#db2777', g1:'#f472b6', g2:'#db2777', bg:'rgba(236,72,153,.16)'},
-  {id:'teal',   name:'青碧', p:'#14b8a6', p2:'#0d9488', g1:'#2dd4bf', g2:'#0d9488', bg:'rgba(20,184,166,.16)'},
+  {id:'orange', name:'橙红（默认）', p:'#ff5a1f', p2:'#e8470f', g1:'#ff7a33', g2:'#f23d0f'},
+  {id:'blue',   name:'天蓝',   p:'#3b82f6', p2:'#2563eb', g1:'#60a5fa', g2:'#2563eb', h:217, a:'#38bdf8', a2:'#7dd3fc', a3:'#0ea5e9', aL:'#0284c7', cr:'#bfdbfe', crL:'#1d4ed8', ink:'#04263d'},
+  {id:'violet', name:'紫罗兰', p:'#8b5cf6', p2:'#7c3aed', g1:'#a78bfa', g2:'#7c3aed', h:262, a:'#e879f9', a2:'#f0abfc', a3:'#d946ef', aL:'#c026d3', cr:'#ddd6fe', crL:'#6d28d9', ink:'#3b0a45'},
+  {id:'green',  name:'翠绿',   p:'#10b981', p2:'#059669', g1:'#34d399', g2:'#059669', h:160, a:'#a3e635', a2:'#bef264', a3:'#84cc16', aL:'#4d7c0f', cr:'#a7f3d0', crL:'#047857', ink:'#1a2e05'},
+  {id:'pink',   name:'樱粉',   p:'#ec4899', p2:'#db2777', g1:'#f472b6', g2:'#db2777', h:330, a:'#fbbf24', a2:'#fcd34d', a3:'#f59e0b', aL:'#b45309', cr:'#fbcfe8', crL:'#be185d', ink:'#3a1d05'},
+  {id:'teal',   name:'青碧',   p:'#14b8a6', p2:'#0d9488', g1:'#2dd4bf', g2:'#0d9488', h:174, a:'#38bdf8', a2:'#7dd3fc', a3:'#0ea5e9', aL:'#0369a1', cr:'#99f6e4', crL:'#0f766e', ink:'#04263d'},
 ];
+const DEF_CH=['#ff5a1f','#ffc93c','#ffe7a8','#ff9a5c'], DEF_PAL={g1:'#ff7a33', g2:'#f23d0f', p:'#ff5a1f', a:'#ffc93c', a2:'#ffd76a', a3:'#ffb21f', soft:'#ffb36b'};
+const DEF_COLORS=[['#ff7a33','#f23d0f'],['#ffd76a','#ff8a1f'],['#ff9a5c','#e8470f'],['#ffb347','#ff5a1f'],['#ff6a3d','#d9360b'],['#ffc93c','#ff6a2b']];
+const THEME_VARS=['--primary','--primary2','--g1','--g2','--p-rgb','--a-rgb','--ptext','--gold','--gold2','--gold3','--goldInk','--cream','--cBg',
+  '--bg','--panel','--panel2','--rowHover','--border','--text','--muted','--faint','--shadow'];
+const hexRgb = h => [1,3,5].map(i=>parseInt(h.slice(i,i+2),16));
+const mixHex = (h,t,k) => { const a=hexRgb(h), b=hexRgb(t); return '#'+a.map((v,i)=>Math.round(v+(b[i]-v)*k).toString(16).padStart(2,'0')).join(''); };
+const hsl = (h,s,l) => `hsl(${((h%360)+360)%360} ${s}% ${l}%)`;
+var ACCENT_OK=false;
 let ACCENT='orange'; try{ ACCENT=localStorage.getItem('accent')||'orange'; }catch(e){}
-function applyAccent(id){ const a=ACCENTS.find(x=>x.id===id)||ACCENTS[0]; ACCENT=a.id; try{localStorage.setItem('accent',a.id)}catch(e){}
-  const s=document.documentElement.style; s.setProperty('--primary',a.p); s.setProperty('--primary2',a.p2); s.setProperty('--grad',`linear-gradient(135deg,${a.g1},${a.g2})`); s.setProperty('--pBg',a.bg); }
+function applyAccent(id, quiet){ const a=ACCENTS.find(x=>x.id===id)||ACCENTS[0]; ACCENT=a.id; try{localStorage.setItem('accent',a.id)}catch(e){}
+  const st=document.documentElement.style, dark=document.documentElement.dataset.theme!=='light';
+  THEME_VARS.forEach(v=>st.removeProperty(v)); st.removeProperty('--grad'); st.removeProperty('--pBg');
+  if (a.id==='orange') { CH=DEF_CH.slice(); PAL=Object.assign({},DEF_PAL); COLORS=DEF_COLORS; }
+  else {
+    const h=a.h, acc=dark?a.a:a.aL, V={
+      '--primary':a.p, '--primary2':a.p2, '--g1':a.g1, '--g2':a.g2, '--p-rgb':hexRgb(a.p).join(','), '--a-rgb':hexRgb(a.a).join(','),
+      '--ptext':dark?mixHex(a.p,'#ffffff',.55):a.p2, '--gold':acc, '--gold2':a.a2, '--gold3':a.a3, '--goldInk':a.ink,
+      '--cream':dark?a.cr:a.crL, '--cBg':dark?`rgba(${hexRgb(a.cr).join(',')},.10)`:`rgba(${hexRgb(a.p).join(',')},.10)` };
+    Object.assign(V, dark ? { '--bg':hsl(h,22,4.5), '--panel':hsl(h,20,8), '--panel2':hsl(h,19,10.5), '--rowHover':hsl(h,20,12.5),
+        '--border':hsl(h,18,17.5), '--text':hsl(h,30,94), '--muted':hsl(h,14,70), '--faint':hsl(h,10,42) }
+      : { '--bg':hsl(h,45,97), '--panel':'#ffffff', '--panel2':hsl(h,60,97.5), '--rowHover':hsl(h,70,96),
+        '--border':hsl(h,34,89), '--text':hsl(h,40,13), '--muted':hsl(h,13,42), '--faint':hsl(h,14,64), '--shadow':`0 10px 30px hsl(${h} 50% 30% / .12)` });
+    for (const k in V) st.setProperty(k, V[k]);
+    CH=[a.p, a.a, a.cr, mixHex(a.p,'#ffffff',.38)];
+    PAL={g1:a.g1, g2:a.g2, p:a.p, a:a.a, a2:a.a2, a3:a.a3, soft:mixHex(a.g1,'#ffffff',.35)};
+    COLORS=[[0,62,52],[14,70,56],[-14,58,48],[28,66,55],[-26,60,50],[8,74,60]].map(([d,sv,l])=>[hsl(h+d,sv+10,l+12), hsl(h+d,sv,l-6)]);
+  }
+  // 图表、头像等是用脚本画的，换主题色后重画一次
+  if (!quiet) { try{ renderAll(); if (STATS) renderStats(); if (SESS.length) renderSess(); }catch(e){} }
+}
 document.addEventListener('click', e=>{
   const m=e.target.closest('[data-mode]'); if (m) { applyMode(m.dataset.mode); renderSettings(); return; }
   const a=e.target.closest('[data-accent]'); if (a) { applyAccent(a.dataset.accent); renderSettings(); toast('主题色已切换'); }
@@ -1543,7 +1574,8 @@ async function refresh(silent){
     renderAll();
   }catch(e){ if(!silent) toast(e.message,false); }
 }
-try{ applyMode(THEME_MODE); applyAccent(ACCENT); }catch(e){ setTheme('dark'); }
+try{ applyMode(THEME_MODE); applyAccent(ACCENT, true); }catch(e){ setTheme('dark'); }
+ACCENT_OK=true;
 setAccSub('desk');
 withBusy('正在加载…', ()=>refresh()).then(()=>{ loadProxy(); let p='dash'; try{ p=localStorage.getItem('page')||'dash'; }catch(e){} go(p); });
 // 窗口不可见（最小化 / 在后台）时暂停刷新，重新可见时立即刷新一次
