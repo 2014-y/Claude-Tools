@@ -692,7 +692,7 @@ namespace ClaudeSwitcher
             }).ToList();
             var best = BestAccount();
             return new Dictionary<string, object> {
-                { "desktop", desktop }, { "desktopRunning", DesktopStore.IsRunning() },
+                { "desktop", desktop }, { "desktopRunning", DesktopStore.IsRunning() }, { "desktopEdition", DesktopStore.Edition }, { "desktopDataDir", DesktopStore.ActiveDir },
                 { "cli", cli }, { "recent", ProjectDirs() }, { "cliStatus", CliStatus(false) },
                 { "best", best == null ? null : best.Id },
                 { "switchesToday", OpLog.CountToday("切换桌面账号") },

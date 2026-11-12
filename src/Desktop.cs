@@ -42,7 +42,8 @@ namespace ClaudeSwitcher
         //   数据被系统重定向到 %LOCALAPPDATA%\Packages\Claude_<发布者>\LocalCache\Roaming\Claude
         public static readonly string MsixPackageDir = FindMsixPackageDir();
         public static readonly string AppData = ResolveAppData();
-        public static bool IsMsix { get { return MsixPackageDir != null && AppData.StartsWith(MsixPackageDir + "\\", StringComparison.OrdinalIgnoreCase); } }
+        // 数据是否放在 MSIX 的重定向文件夹里（仅用于显示）
+        public static bool DataInPackage { get { return MsixPackageDir != null && AppData.StartsWith(MsixPackageDir + "\\", StringComparison.OrdinalIgnoreCase); } }
 
         static string FindMsixPackageDir()
         {
@@ -76,6 +77,19 @@ namespace ClaudeSwitcher
             return t;
         }
 
+        // MSIX 版到底用哪个文件夹，取决于这台电脑的历史：
+        //   以前装过旧版 Claude（真实的 %APPDATA%\Claude 已存在）→ MSIX 版继续用这个真实文件夹；
+        //   全新安装 → 用系统重定向的 Packages\Claude_*\LocalCache\Roaming\Claude。
+        // 所以不能看「装没装传统版」，而要看哪个文件夹里真的有登录、由本工具管理、最近被使用。
+        static bool HasLogin(string claudeDir)
+        {
+            try { var c = Path.Combine(claudeDir, "config.json"); return File.Exists(c) && File.ReadAllText(c).Contains("\"oauth:tokenCache"); } catch { return false; }
+        }
+        static int Score(string claudeDir)
+        {
+            if (!Directory.Exists(claudeDir)) return -1;
+            return (HasLogin(claudeDir) ? 4 : 0) + (File.Exists(Path.Combine(claudeDir, Marker)) ? 2 : 0);
+        }
         static string ResolveAppData()
         {
             var forced = Environment.GetEnvironmentVariable("CLAUDE_SWITCHER_APPDATA");
@@ -83,12 +97,16 @@ namespace ClaudeSwitcher
             var roaming = Env("CLAUDE_SWITCHER_ROAMING", Environment.SpecialFolder.ApplicationData);
             if (MsixPackageDir == null) return roaming;
             var msixRoaming = Path.Combine(MsixPackageDir, @"LocalCache\Roaming");
-            var classic = Path.Combine(roaming, "Claude");
-            bool classicInstalled = File.Exists(Path.Combine(LocalAppData, @"AnthropicClaude\claude.exe")) || Directory.Exists(Path.Combine(LocalAppData, "AnthropicClaude"));
-            // 只装了 MSIX 版，或 MSIX 版的数据更新：用 MSIX 的数据目录
-            if (!Directory.Exists(classic) || !classicInstalled) return msixRoaming;
-            return Stamp(Path.Combine(msixRoaming, "Claude")) > Stamp(classic) ? msixRoaming : roaming;
+            string real = Path.Combine(roaming, "Claude"), virt = Path.Combine(msixRoaming, "Claude");
+            int rs = Score(real), vs = Score(virt);
+            if (rs < 0 && vs < 0) return ClassicInstalled ? roaming : msixRoaming; // 都还没有数据：按安装方式
+            if (rs != vs) return rs > vs ? roaming : msixRoaming;                     // 有登录 > 有本工具标记 > 只是存在
+            return Stamp(virt) > Stamp(real) ? msixRoaming : roaming;                // 不分上下时看谁最近被使用
         }
+        static bool ClassicInstalled { get { return File.Exists(Path.Combine(LocalAppData, @"AnthropicClaude\claude.exe")) || Directory.Exists(Path.Combine(LocalAppData, @"AnthropicClaude")); } }
+        // 启动 / 识别桌面 App 用哪种方式：只看程序装成了什么，和数据放在哪个文件夹无关
+        public static bool MsixApp { get { return MsixPackageDir != null && !ClassicInstalled; } }
+        public static string Edition { get { return MsixApp ? "MSIX 包版" : "传统安装版"; } }
         public static readonly string ActiveDir = Path.Combine(AppData, "Claude");
         public static readonly string ProfilesDir = Path.Combine(AppData, "Claude-profiles");
         static bool TestMode { get { return Environment.GetEnvironmentVariable("CLAUDE_SWITCHER_TEST") == "1"; } }
@@ -320,7 +338,7 @@ namespace ClaudeSwitcher
         public static void LaunchDesktop()
         {
             if (TestMode) return;
-            if (IsMsix)
+            if (MsixApp)
             {
                 Process.Start(new ProcessStartInfo("explorer.exe", "shell:AppsFolder\\" + MsixAppId()) { UseShellExecute = true });
                 return;
