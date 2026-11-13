@@ -27,6 +27,7 @@ namespace ClaudeSwitcher
         static readonly Dictionary<string, object> Defaults = new Dictionary<string, object> {
             { "trayMode", false },         // 关闭窗口后在托盘后台运行（默认关闭）
             { "confirmSwitch", true },     // 切换前确认
+            { "warnActiveSessions", true },// 切换前提醒：有最近还在用的会话（换号继续会重新思考，更慢更费 Token）
             { "autoOpenAfterSwitch", true },
             { "maskDefault", true },
             { "notify", true },            // 托盘气泡通知
@@ -378,6 +379,53 @@ namespace ClaudeSwitcher
                 }
             }
             return list.OrderByDescending(x => x.LastActivity).ToList();
+        }
+
+        // 切换前提醒用：当前账号里最近 minutes 分钟还在用的会话。
+        // 换到别的账号（另一个组织）继续这些会话时，Claude 之前的“思考”用不了，会弹官方提示，头几次回复更慢、更费 Token。
+        // origin = 这条会话最早出现在哪个账号的存档里（复制过去的文件创建时间更晚）。
+        public static List<object> Recent(int minutes)
+        {
+            var list = new List<Dictionary<string, object>>();
+            try
+            {
+                var profiles = DesktopStore.Load();
+                var active = profiles.FirstOrDefault(p => p.Active);
+                if (active == null) return new List<object>();
+                var root = Path.Combine(active.Dir, "claude-code-sessions");
+                if (!Directory.Exists(root)) return new List<object>();
+                var deleted = DeletedIds(new[] { active.Dir });
+                long now = (long)(DateTime.UtcNow - new DateTime(1970, 1, 1)).TotalMilliseconds;
+                var seen = new HashSet<string>();
+                foreach (var f in SafeFiles(root, "local_*.json"))
+                {
+                    SessionInfo s;
+                    try { s = Parse(f); } catch { continue; }
+                    if (s.Id == null || s.Archived) continue;
+                    if (s.LastActivity <= 0 || now - s.LastActivity > minutes * 60000L) continue;
+                    if (deleted.Contains(s.Id.StartsWith("local_") ? s.Id.Substring(6) : s.Id)) continue;
+                    if (!seen.Add(s.Id)) continue;
+                    string origin = active.Remark;
+                    var first = File.GetCreationTimeUtc(f);
+                    foreach (var p in profiles)
+                    {
+                        if (p.Active) continue;
+                        var r = Path.Combine(p.Dir, "claude-code-sessions");
+                        if (!Directory.Exists(r)) continue;
+                        foreach (var g in SafeFiles(r, Path.GetFileName(f)))
+                        {
+                            var c = File.GetCreationTimeUtc(g);
+                            if (c < first) { first = c; origin = p.Remark; }
+                        }
+                    }
+                    list.Add(new Dictionary<string, object> {
+                        { "title", string.IsNullOrEmpty(s.Title) ? "未命名会话" : s.Title },
+                        { "minutes", (now - s.LastActivity) / 60000 },
+                        { "origin", origin } });
+                }
+            }
+            catch { }
+            return list.OrderBy(x => (long)x["minutes"]).Take(5).Cast<object>().ToList();
         }
 
         public static HashSet<string> DeletedIds(IEnumerable<string> profileDirs)

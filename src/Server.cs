@@ -203,7 +203,15 @@ namespace ClaudeSwitcher
         {
             new Thread(() =>
             {
-                try { DoSwitch(id); Balloon("切换成功", "Claude 桌面 App 已切换到「" + (Settings.Bool("maskDefault") ? Mask(remark) : remark) + "」"); }
+                try
+                {
+                    // 托盘切换没有确认窗口：有最近还在用的会话时，在通知里带一句
+                    int recent = 0;
+                    try { if (Settings.Bool("warnActiveSessions")) recent = Sessions.Recent(60).Count; } catch { }
+                    DoSwitch(id);
+                    Balloon("切换成功", "Claude 桌面 App 已切换到「" + (Settings.Bool("maskDefault") ? Mask(remark) : remark) + "」"
+                        + (recent > 0 ? "\n有 " + recent + " 个刚才还在用的会话：在新账号里继续它们，Claude 要重新思考（更慢、更费 Token）" : ""));
+                }
                 catch (Exception ex) { Balloon("切换失败", ex.Message); }
             }) { IsBackground = true }.Start();
         }
@@ -556,6 +564,7 @@ namespace ClaudeSwitcher
                 case "state": LastPing = DateTime.Now; windowEverOpened = true; return State();
 
                 case "desktop/switch": DoSwitch(S(a, "id")); return State();
+                case "desktop/switchCheck": return Settings.Bool("warnActiveSessions") ? Sessions.Recent(60) : new List<object>();
                 case "desktop/best":
                     {
                         var best = BestAccount();

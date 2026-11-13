@@ -1281,6 +1281,7 @@ function renderSettings(){
     + row('autoMerge','自动合并所有账号的会话记录','启动时、每 5 分钟和切换账号后，自动把各账号的会话互相补齐（不关闭桌面 App；新增的会话在桌面 App 重新打开后显示）')
     + row('syncClientSettings','切换时同步客户端设置','把上一个账号里调好的字号（界面缩放）、主题、窗口大小与布局、MCP 配置带到新账号；不会带登录信息')
     + row('confirmSwitch','切换前确认','桌面 App 运行中时，切换前先弹窗确认')
+    + row('warnActiveSessions','切换前提醒进行中的会话','最近 1 小时还在用的会话，换到别的账号继续时 Claude 要重新思考（更慢、更费 Token）；切换前列出来提醒一下')
     + row('maskDefault','默认脱敏显示','打开时隐藏邮箱中间部分（右上角眼睛按钮可临时切换）')
     + `<div class="setting"><div class="t"><b>语言</b><span>界面显示语言</span></div><select class="sel" id="langSel">${[['zh-CN','简体中文'],['zh-TW','繁體中文'],['en','English']].map(([v,t])=>`<option value="${v}" ${v===UI_LANG?'selected':''}>${t}</option>`).join('')}</select></div>`
     + `<div class="setting"><div class="t"><b>界面字体</b><span>应用里所有文字使用的字体</span></div><select class="sel" id="fontSel">${FONTS.map(([v,t])=>`<option value="${v}" ${v===UI_FONT?'selected':''}>${t}</option>`).join('')}</select></div>`;
@@ -1390,8 +1391,27 @@ document.addEventListener('click', async e=>{
 
 // ---------- 账号操作 ----------
 const switchMsg = name => d => '已切换到「'+name+'」' + (d && d.lastSync ? '\n' + d.lastSync : '');
+// 切换前提醒：最近 60 分钟还在用的会话。换到别的账号继续它们时，Claude 之前的“思考”用不了（官方按组织绑定），
+// 会弹“Claude can't use thinking from another organization”，头几次回复更慢、更费 Token。
+async function activeSessionWarning(){
+  if (S.settings.warnActiveSessions===false) return '';
+  let list=[]; try{ list=await api('desktop/switchCheck')||[]; }catch(x){ return ''; }
+  if (!list.length) return '';
+  const ago=m=>m<1?'刚刚':m+' 分钟前';
+  return '⚠ 最近还在用的会话：\n'
+    + list.map(s=>'· '+(s.title.length>26?s.title.slice(0,26)+'…':s.title)+'（'+ago(s.minutes)+'，由「'+M(s.origin)+'」开始）').join('\n')
+    + '\n换号后继续这些会话，Claude 会提示“无法使用之前的思考”，头几次回复更慢、更费 Token（内容不会丢）。'
+    + '\n建议：长会话在原账号做完，或换号后新开会话。';
+}
+// 有提醒时一定弹窗（即使关了“切换前确认”）；没有提醒时按原来的设置
+async function confirmSwitch(title, text){
+  const warn=await activeSessionWarning();
+  const need = warn || (S.desktopRunning && S.settings.confirmSwitch!==false);
+  if (!need) return true;
+  return !!await dialog({title, text: warn ? (warn + (S.desktopRunning ? '\n\n' + text : '')) : text, okText: warn ? '仍然切换' : '切换'});
+}
 async function doSwitch(p){
-  if (S.desktopRunning && S.settings.confirmSwitch!==false && !await dialog({title:'切换到「'+M(p.remark)+'」？', text:'Claude 桌面 App 会被关闭并以这个账号重新打开，进行中的对话会中断。'+(S.settings.syncSessions!==false?'\n当前账号的会话记录会同步到新账号。':''), okText:'切换'})) return;
+  if (!await confirmSwitch('切换到「'+M(p.remark)+'」？', 'Claude 桌面 App 会被关闭并以这个账号重新打开，进行中的对话会中断。'+(S.settings.syncSessions!==false?'\n当前账号的会话记录会同步到新账号。':''))) return;
   if (await run('desktop/switch',{id:p.id},'正在切换到「'+M(p.remark)+'」…',switchMsg(M(p.remark)))) loadStats();
 }
 document.addEventListener('click', async e=>{
@@ -1406,7 +1426,7 @@ document.addEventListener('click', async e=>{
   if (e.target.closest('#cAdd')) { const n=await dialog({title:'添加终端 Claude Code 账号', text:'给账号起个备注名，第一次启动时在弹出的终端里登录。', input:'', okText:'添加'}); if(n) run('cli/add',{remark:n},'创建中…','已添加，选好文件夹后点「新对话」登录'); return; }
 });
 $('#bestBtn').onclick=async()=>{ const p=bestOther(); if(!p){ toast('没有可切换的账号（其他账号额度已用满或在小黑屋里）',false); return; }
-  if (S.desktopRunning && S.settings.confirmSwitch!==false && !await dialog({title:'切换到余量最多的「'+M(p.remark)+'」？',text:'Claude 桌面 App 会被关闭并以这个账号重新打开。',okText:'切换'})) return;
+  if (!await confirmSwitch('切换到余量最多的「'+M(p.remark)+'」？', 'Claude 桌面 App 会被关闭并以这个账号重新打开。')) return;
   run('desktop/switch',{id:p.id},'正在切换到「'+M(p.remark)+'」…',switchMsg(M(p.remark))); };
 $('#dlist').onclick=async e=>{
   const b=e.target.closest('[data-a]'); if(!b||b.disabled) return;
