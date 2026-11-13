@@ -662,6 +662,14 @@ namespace ClaudeSwitcher
                     }
                 case "settings": return Settings.All();
                 case "settings/set": Settings.Set(S(a, "key"), a.ContainsKey("value") ? a["value"] : null); return Settings.All();
+                case "diag/export":
+                    {
+                        // 诊断信息存到桌面并在资源管理器里选中，方便直接发给别人
+                        var file = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory), "Claude-Tools-诊断信息.txt");
+                        File.WriteAllText(file, DesktopStore.Diagnose(), new UTF8Encoding(true));
+                        try { Process.Start("explorer.exe", "/select,\"" + file + "\""); } catch { }
+                        return file;
+                    }
                 case "quit": new Thread(() => { Thread.Sleep(300); Quit(); }).Start(); return null;
             }
             throw new Exception("未知接口：" + name);

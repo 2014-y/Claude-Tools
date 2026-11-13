@@ -1286,13 +1286,15 @@ function renderSettings(){
     + `<div class="setting"><div class="t"><b>语言</b><span>界面显示语言</span></div><select class="sel" id="langSel">${[['zh-CN','简体中文'],['zh-TW','繁體中文'],['en','English']].map(([v,t])=>`<option value="${v}" ${v===UI_LANG?'selected':''}>${t}</option>`).join('')}</select></div>`
     + `<div class="setting"><div class="t"><b>界面字体</b><span>应用里所有文字使用的字体</span></div><select class="sel" id="fontSel">${FONTS.map(([v,t])=>`<option value="${v}" ${v===UI_FONT?'selected':''}>${t}</option>`).join('')}</select></div>`;
   const pathRow=(t,p)=>`<div class="setting"><div class="t"><b>${t}</b><span class="num">${esc(p||'')}</span></div><button class="btn sm" data-path="${esc(p||'')}">${ico('folder')}打开</button></div>`;
-  $('#setData').innerHTML = `<div class="setting"><div class="t"><b>Claude Tools v${esc(st.version||'')}</b><span>只管理你自己的账号，所有数据都保存在本机，不会上传。</span></div><button class="btn sm red" id="quitBtn">${ico('power')}退出程序</button></div>`;
+  $('#setData').innerHTML = `<div class="setting"><div class="t"><b>导出诊断信息</b><span>用不了、切换失败、看不到账号时点这里：在桌面生成一份文本报告，发给作者就能看出卡在哪一步。不含登录令牌和会话内容，邮箱已打码。</span></div><button class="btn sm" id="diagBtn">${ico('folder')}导出</button></div>`
+    + `<div class="setting"><div class="t"><b>Claude Tools v${esc(st.version||'')}</b><span>只管理你自己的账号，所有数据都保存在本机，不会上传。</span></div><button class="btn sm red" id="quitBtn">${ico('power')}退出程序</button></div>`;
 }
 $('#p-set').onclick=async e=>{
   const sw=e.target.closest('.switch');
   if (sw){ try{ const st=await api('settings/set',{key:sw.dataset.key,value:!sw.classList.contains('on')}); S.settings=st;
       if (sw.dataset.key==='maskDefault') setMask(st.maskDefault); renderSettings(); toast('已保存'); }catch(x){ toast(x.message,false); } return; }
   const p=e.target.closest('[data-path]'); if (p){ api('openPath',{path:p.dataset.path}).catch(x=>toast(x.message,false)); return; }
+  if (e.target.closest('#diagBtn')){ try{ const f=await withBusy('正在生成诊断信息…',()=>api('diag/export')); toast('已保存到桌面：'+String(f).split('\\').pop()); }catch(x){ toast(x.message,false); } return; }
   if (e.target.closest('#quitBtn') && await dialog({title:'退出 Claude Tools？',text:'托盘图标会消失，开机自启动设置不受影响。',okText:'退出',danger:true})){ await api('quit'); window.close(); }
 };
 $('#p-set').addEventListener('change', async e=>{ if(e.target.id==='fontSel'){ setFont(e.target.value); toast('字体已切换'); return; } if(e.target.id==='langSel'){ try{localStorage.setItem('lang',e.target.value)}catch(x){} location.reload(); return; } if(e.target.id==='autoAllSel'){ setAutoAll(+e.target.value); toast(+e.target.value?'已开启自动刷新':'已关闭自动刷新'); return; } if(e.target.id==='uiScaleSel'){ UI_SCALE=+e.target.value; try{localStorage.setItem('uiScale2',UI_SCALE)}catch(x){} applyZoom(); toast('界面字号已调整'); return; } if(e.target.id==='uname'){ const st=await api('settings/set',{key:'userName',value:e.target.value.trim()}); S.settings=st; renderDash(); toast('已保存'); } });

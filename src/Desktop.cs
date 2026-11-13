@@ -103,9 +103,49 @@ namespace ClaudeSwitcher
             if (rs != vs) return rs > vs ? roaming : msixRoaming;                     // 有登录 > 有本工具标记 > 只是存在
             return Stamp(virt) > Stamp(real) ? msixRoaming : roaming;                // 不分上下时看谁最近被使用
         }
-        static bool ClassicInstalled { get { return File.Exists(Path.Combine(LocalAppData, @"AnthropicClaude\claude.exe")) || Directory.Exists(Path.Combine(LocalAppData, @"AnthropicClaude")); } }
-        // 启动 / 识别桌面 App 用哪种方式：只看程序装成了什么，和数据放在哪个文件夹无关
-        public static bool MsixApp { get { return MsixPackageDir != null && !ClassicInstalled; } }
+        // 传统安装版的程序文件（没有就是 null）。只认真正的 claude.exe：
+        // 从旧版升级到 MSIX 版的电脑上，AnthropicClaude 文件夹常常还留着（只剩日志 / Update.exe），
+        // 以前光看文件夹在不在，就把这种电脑当成传统版，切换后去那里找 claude.exe 启动而失败。
+        static string ClassicExe()
+        {
+            try
+            {
+                var dir = Path.Combine(LocalAppData, "AnthropicClaude");
+                var stub = Path.Combine(dir, "claude.exe");
+                if (File.Exists(stub)) return stub;
+                if (!Directory.Exists(dir)) return null;
+                return Directory.GetDirectories(dir, "app-*")
+                    .OrderByDescending(d => d, StringComparer.OrdinalIgnoreCase)
+                    .Select(d => Path.Combine(d, "claude.exe")).FirstOrDefault(File.Exists);
+            }
+            catch { return null; }
+        }
+        static bool ClassicInstalled { get { return ClassicExe() != null; } }
+        // 最近一次看到桌面 App 在运行时，它是哪种安装方式（true = MSIX 包版）；没看到过为 null
+        static bool? seenMsix;
+        // 从运行中的进程路径得到的包系列名（...\WindowsApps\Claude_1.2.3.0_x64__pzs8sxrjxfjjc\... → Claude_pzs8sxrjxfjjc）
+        static string seenFamily;
+        static readonly Regex MsixPathRe = new Regex(@"\\WindowsApps\\(Claude)_[^\\_]+_[^\\_]*_[^\\_]*_([^\\]+)\\", RegexOptions.IgnoreCase);
+        static void NoteRunning(IEnumerable<string> paths)
+        {
+            foreach (var p in paths)
+            {
+                if (string.IsNullOrEmpty(p)) continue;
+                var m = MsixPathRe.Match(p);
+                if (m.Success) { seenMsix = true; seenFamily = m.Groups[1].Value + "_" + m.Groups[2].Value; return; }
+                if (p.IndexOf("\\WindowsApps\\Claude_", StringComparison.OrdinalIgnoreCase) >= 0) { seenMsix = true; return; }
+                if (p.StartsWith(Path.Combine(LocalAppData, "AnthropicClaude") + "\\", StringComparison.OrdinalIgnoreCase)) { seenMsix = false; return; }
+            }
+        }
+        // 启动 / 识别桌面 App 用哪种方式：先看它实际是从哪里运行的；没运行过就看装了什么（有真正的传统版程序才算传统版）
+        public static bool MsixApp
+        {
+            get
+            {
+                if (seenMsix.HasValue) return seenMsix.Value;
+                return ClassicExe() == null && (MsixPackageDir != null || seenFamily != null);
+            }
+        }
         public static string Edition { get { return MsixApp ? "MSIX 包版" : "传统安装版"; } }
         public static readonly string ActiveDir = Path.Combine(AppData, "Claude");
         public static readonly string ProfilesDir = Path.Combine(AppData, "Claude-profiles");
@@ -235,6 +275,100 @@ namespace ClaudeSwitcher
             catch { return ""; }
         }
 
+        // ---------- 诊断信息：别人的电脑上用不了时，导出这份报告就能看出卡在哪一步 ----------
+        // 只写路径、有没有、时间和数量；不含令牌、Cookie、会话内容，邮箱和用户名打码。
+        static string MaskText(string s)
+        {
+            if (string.IsNullOrEmpty(s)) return s ?? "";
+            s = EmailRe.Replace(s, m => { var v = m.Value; int at = v.IndexOf('@'); return (at > 2 ? v.Substring(0, 2) : v.Substring(0, 1)) + "***" + v.Substring(at); });
+            var user = Environment.UserName;
+            if (!string.IsNullOrEmpty(user) && user.Length > 1) s = Regex.Replace(s, @"(?i)\\Users\\" + Regex.Escape(user) + @"(?=\\|$)", @"\Users\<用户>");
+            return s;
+        }
+        static string DirInfo(string dir)
+        {
+            if (!Directory.Exists(dir)) return "不存在";
+            var st = Stamp(dir);
+            return "存在，" + (HasLogin(dir) ? "有登录" : "没有登录") + (File.Exists(Path.Combine(dir, Marker)) ? "，有本工具标记" : "，没有本工具标记")
+                + "，最近活动 " + (st == DateTime.MinValue ? "无" : st.ToLocalTime().ToString("MM-dd HH:mm"));
+        }
+        public static string Diagnose()
+        {
+            var sb = new StringBuilder();
+            Action<string, Func<string>> line = (k, f) => { string v; try { v = f(); } catch (Exception ex) { v = "读取出错：" + ex.Message; } sb.AppendLine(k + "：" + MaskText(v)); };
+            sb.AppendLine("Claude Tools 诊断信息  " + DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"));
+            sb.AppendLine("（不含登录令牌、Cookie 和会话内容；邮箱和用户名已打码）");
+            sb.AppendLine();
+            sb.AppendLine("== 系统 ==");
+            line("工具版本", () => File.GetLastWriteTime(System.Windows.Forms.Application.ExecutablePath).ToString("yyyy-MM-dd HH:mm") + " 编译，位置 " + System.Windows.Forms.Application.ExecutablePath);
+            line("Windows", () => Environment.OSVersion.VersionString + (Environment.Is64BitOperatingSystem ? " 64 位" : " 32 位"));
+            line(".NET Framework", () => Convert.ToString(Microsoft.Win32.Registry.GetValue(@"HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\NET Framework Setup\NDP\v4\Full", "Release", "未知")) + "（528040 以上是 4.8）");
+            line("管理员权限", () => new System.Security.Principal.WindowsPrincipal(System.Security.Principal.WindowsIdentity.GetCurrent()).IsInRole(System.Security.Principal.WindowsBuiltInRole.Administrator) ? "是" : "否");
+            line("界面组件", () => WebUi.Available ? "WebView2 可用" : "WebView2 不可用（改用 Edge 窗口）");
+            sb.AppendLine();
+            sb.AppendLine("== Claude 桌面 App 装在哪 ==");
+            var classicDir = Path.Combine(LocalAppData, "AnthropicClaude");
+            line("传统安装版程序", () => ClassicExe() ?? "没有");
+            line("AnthropicClaude 文件夹", () => !Directory.Exists(classicDir) ? "不存在"
+                : "存在，里面有：" + string.Join("、", Directory.GetFileSystemEntries(classicDir).Select(Path.GetFileName).Take(12)));
+            line("MSIX 包文件夹", () =>
+            {
+                var root = Path.Combine(LocalAppData, "Packages");
+                var ds = Directory.Exists(root) ? Directory.GetDirectories(root).Where(d => Path.GetFileName(d).IndexOf("claude", StringComparison.OrdinalIgnoreCase) >= 0 || Path.GetFileName(d).IndexOf("anthropic", StringComparison.OrdinalIgnoreCase) >= 0).ToList() : new List<string>();
+                if (ds.Count == 0) return "没有找到";
+                return string.Join("；", ds.Select(d => Path.GetFileName(d) + "（LocalCache " + (Directory.Exists(Path.Combine(d, "LocalCache")) ? "有" : "无")
+                    + "，LocalCache\\Roaming\\Claude " + (Directory.Exists(Path.Combine(d, @"LocalCache\Roaming\Claude")) ? "有" : "无") + "）"));
+            });
+            line("工具认定的 MSIX 包", () => MsixPackageDir ?? "无");
+            line("正在运行的 Claude 进程", () =>
+            {
+                var ps = Process.GetProcessesByName("claude").Select(p => ProcessPath(p) ?? "（读不到路径）").Distinct().ToList();
+                return ps.Count == 0 ? "没有在运行" : string.Join("；", ps.Take(6));
+            });
+            line("工具认出的桌面 App 进程数", () => DesktopProcesses().Count.ToString());
+            line("按哪种方式启动", () => Edition + (seenMsix.HasValue ? "（按运行中的进程判断）" : "（按安装情况判断）"));
+            line("MSIX 应用 ID", () => MsixApp ? MsixAppId() : "不适用");
+            sb.AppendLine();
+            sb.AppendLine("== 数据文件夹 ==");
+            var roaming = Env("CLAUDE_SWITCHER_ROAMING", Environment.SpecialFolder.ApplicationData);
+            line("真实文件夹 %APPDATA%\\Claude", () => DirInfo(Path.Combine(roaming, "Claude")));
+            line("MSIX 重定向文件夹", () => MsixPackageDir == null ? "不适用" : DirInfo(Path.Combine(MsixPackageDir, @"LocalCache\Roaming\Claude")));
+            line("工具正在用的数据文件夹", () => ActiveDir + "（" + DirInfo(ActiveDir) + "）");
+            line("存档文件夹", () => ProfilesDir + (Directory.Exists(ProfilesDir) ? "，存档 " + Directory.GetDirectories(ProfilesDir).Length + " 个" : "，还不存在"));
+            line("数据文件夹里的内容", () => !Directory.Exists(ActiveDir) ? "不存在" : string.Join("、", Directory.GetFileSystemEntries(ActiveDir).Select(Path.GetFileName).Take(40)));
+            line("config.json 里的项目名", () =>
+            {
+                var c = Path.Combine(ActiveDir, "config.json");
+                if (!File.Exists(c)) return "没有 config.json";
+                var keys = Regex.Matches(File.ReadAllText(c), "\"([A-Za-z][A-Za-z0-9:_\\-]{2,40})\"\\s*:").Cast<Match>().Select(m => m.Groups[1].Value).Distinct().Take(40);
+                return string.Join("、", keys);
+            });
+            sb.AppendLine();
+            sb.AppendLine("== 账号 ==");
+            try
+            {
+                var list = Load();
+                sb.AppendLine("共 " + list.Count + " 个");
+                int i = 0;
+                foreach (var p in list)
+                {
+                    var q = QuotaReader.Read(p.Dir);
+                    sb.AppendLine("  " + (++i) + ". " + (p.Active ? "[当前] " : "") + (p.LoggedIn ? "已登录" : "未登录") + "，邮箱" + (p.Email.Length > 0 ? "识别到" : "没识别到")
+                        + "，会话文件 " + p.Sessions + " 个，额度记录" + (q != null ? "有" : "没有") + "，文件夹 " + MaskText(p.Dir));
+                }
+            }
+            catch (Exception ex) { sb.AppendLine("读取账号出错：" + MaskText(ex.ToString())); }
+            sb.AppendLine();
+            sb.AppendLine("== 最近的操作日志（最多 40 条）==");
+            try
+            {
+                var json = new System.Web.Script.Serialization.JavaScriptSerializer { MaxJsonLength = int.MaxValue };
+                foreach (var o in OpLog.Read(40)) sb.AppendLine("  " + MaskText(json.Serialize(o)));
+            }
+            catch (Exception ex) { sb.AppendLine("读取日志出错：" + ex.Message); }
+            return sb.ToString();
+        }
+
         // ---------- 进程控制 ----------
         static string InstallDir { get { return Path.Combine(LocalAppData, "AnthropicClaude"); } }
 
@@ -256,14 +390,17 @@ namespace ClaudeSwitcher
         {
             var path = ProcessPath(p);
             if (string.IsNullOrEmpty(path)) return false;
+            // MSIX 包版：不再要求先找到 Packages\Claude_* 数据文件夹（找不到时以前会认不出正在运行的 App，直接去搬它占用着的目录）
             return path.StartsWith(InstallDir + "\\", StringComparison.OrdinalIgnoreCase)
                 || path.StartsWith(ActiveDir + "\\", StringComparison.OrdinalIgnoreCase)
-                || (MsixPackageDir != null && path.IndexOf("\\WindowsApps\\Claude_", StringComparison.OrdinalIgnoreCase) >= 0);
+                || path.IndexOf("\\WindowsApps\\Claude_", StringComparison.OrdinalIgnoreCase) >= 0;
         }
 
         static List<Process> DesktopProcesses()
         {
-            return Process.GetProcessesByName("claude").Where(IsDesktopProcess).ToList();
+            var list = Process.GetProcessesByName("claude").Where(IsDesktopProcess).ToList();
+            if (list.Count > 0) try { NoteRunning(list.Select(ProcessPath)); } catch { }
+            return list;
         }
 
         public static bool IsRunning()
@@ -322,7 +459,7 @@ namespace ClaudeSwitcher
         static string MsixAppId()
         {
             if (aumid != null) return aumid;
-            var family = Path.GetFileName(MsixPackageDir);
+            var family = MsixPackageDir != null ? Path.GetFileName(MsixPackageDir) : seenFamily;
             string app = null;
             try
             {
@@ -352,13 +489,14 @@ namespace ClaudeSwitcher
                 if (px != null) args = "--proxy-server=\"" + ProxyPool.HostPort(px) + "\"";
             }
             catch { }
-            var stub = Path.Combine(InstallDir, "claude.exe");
-            string exe = File.Exists(stub) ? stub : null;
-            if (exe == null && Directory.Exists(InstallDir))
-                exe = Directory.GetDirectories(InstallDir, "app-*")
-                    .OrderByDescending(d => d, StringComparer.OrdinalIgnoreCase)
-                    .Select(d => Path.Combine(d, "claude.exe")).FirstOrDefault(File.Exists);
-            if (exe == null) throw new Exception("没有找到 Claude 桌面 App 的安装位置：" + InstallDir);
+            string exe = ClassicExe();
+            if (exe == null && (MsixPackageDir != null || seenFamily != null))
+            {
+                // 传统版的程序已经不在了（升级成了 MSIX 版）：按 MSIX 版启动
+                Process.Start(new ProcessStartInfo("explorer.exe", "shell:AppsFolder\\" + MsixAppId()) { UseShellExecute = true });
+                return;
+            }
+            if (exe == null) throw new Exception("没有找到 Claude 桌面 App：既没有传统安装版（" + InstallDir + "），也没有找到 MSIX 包版。\n请先手动打开一次 Claude 桌面 App，再回来重试；还不行请在「设置」里导出诊断信息。");
             Process.Start(new ProcessStartInfo(exe, args) { UseShellExecute = true, WorkingDirectory = Path.GetDirectoryName(exe) });
         }
 
