@@ -78,6 +78,10 @@ svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:2;stroke-l
 .page{flex:1;min-height:0;display:flex;flex-direction:column;gap:16px;overflow:auto;padding-right:4px}
 .page.hide{display:none}
 .bar{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+#p-stats .bar{flex-wrap:nowrap}
+#p-stats .bar>.seg,#tAuto,#tRefresh{flex:none}
+#tModelSel,#tAccSel{flex:0 1 190px;min-width:120px;max-width:200px;text-overflow:ellipsis}
+#tSync{flex:0 1 auto;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .search{display:flex;align-items:center;gap:8px;background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:0 12px;height:40px;width:260px;color:var(--faint)}
 .search input{border:0;outline:0;background:none;flex:1;height:100%}
 .chips{display:flex;gap:2px;background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:4px;flex-wrap:wrap}
